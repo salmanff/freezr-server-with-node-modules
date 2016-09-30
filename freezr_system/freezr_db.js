@@ -14,7 +14,7 @@ exports.app_db_collection_get = function (app_name, collection_name, callback) {
     db_main.app_db_collection_get (app_name, collection_name, true, callback)
 }
 exports.real_id = function(data_object_id,app_config,collection_name) {
-    console.log("getting real id for "+data_object_id+" collection name "+collection_name)
+    //onsole.log("getting real id for "+data_object_id+" collection name "+collection_name)
     if (collection_name=="files" ||   (app_config && app_config.collections && app_config.collections[collection_name] && app_config.collections[collection_name].make_data_id && (app_config.collections[collection_name].make_data_id.manual || app_config.collections[collection_name].make_data_id.from_field_names))) {
         return  data_object_id;
     } else {
@@ -478,7 +478,7 @@ exports.all_user_apps = function (user_id, sort_field, sort_desc, skip, count, c
 };
 exports.getAllCollectionNames = function (app_name, callback) {
     db_main.getAllCollectionNames(app_name, function(err, names) {
-        console.log("Got name in freezr_db "+JSON.stringify(names))
+        //onsole.log("Got name in freezr_db "+JSON.stringify(names))
         var a_name, collection_names=[];
         if (names && names.length > 0) {
             names.forEach(function(name_obj) {
@@ -486,7 +486,6 @@ exports.getAllCollectionNames = function (app_name, callback) {
                 if (a_name && a_name!="system") collection_names.push(a_name)
             });
         }
-        console.log("In db - got collnames "+collection_names.join(", "))
         callback(null, collection_names);
     })
 };
@@ -676,7 +675,7 @@ function deleteFolderAndContents(location, next) {
 exports.create_query_permission_record = function (user_id, requestor_app, requestee_app, permission_name, permission_object, action, callback) {
     // must be used after all inputs above are veified as well as permission_object.collection
     // action can be null, "Accept" or "Deny"
-    if (!user_id || !requestor_app || !requestee_app || !permission_name) {
+    if (!user_id || !requestor_app || !requestee_app || !permission_name || !permission_object.type) {
         callback(helpers.missing_data("query permissions", "freezr_db", exports.version,"create_query_permission_record"));
     }
     var write = {
@@ -684,7 +683,7 @@ exports.create_query_permission_record = function (user_id, requestor_app, reque
         requestee_app: requestee_app,       // Required
         collection: permission_object.collection, // this or collections required
         collections: permission_object.collections, // this or collections required
-        type: permission_object.type? permission_object.type: "db_query", // Required 
+        type: permission_object.type, // Required 
         permission_name: permission_name,             // Required   
         description: permission_object.description? permission_object.description: permission_name,
         granted: false, denied:false, // One of the 2 are required
@@ -696,18 +695,18 @@ exports.create_query_permission_record = function (user_id, requestor_app, reque
 
     if (write.type == "db_query") {
         write.permitted_fields = permission_object.permitted_fields? permission_object.permitted_fields: null;
-        write.allowed_groups = permission_object.allowed_groups? permission_object.allowed_groups: "logged_in";
-        write.allowed_user_ids = permission_object.allowed_user_ids? permission_object.allowed_user_ids: null;
+        write.sharable_groups = permission_object.sharable_groups? permission_object.sharable_groups: "self";
+        //write.allowed_user_ids = permission_object.allowed_user_ids? permission_object.allowed_user_ids: null;
         write.return_fields = permission_object.return_fields? permission_object.return_fields: null;
         write.anonymously = permission_object.anonymously? permission_object.anonymously: false;
         write.sort_fields = permission_object.sort_fields? permission_object.sort_fields: null; // todo -  only 1 sort field can work at this point - to add more...
         write.max_count = permission_object.count? permission_object.count: null;
     } else if (write.type == "field_delegate") {
         write.sharable_fields = permission_object.sharable_fields? permission_object.sharable_fields : [];
-        write.sharable_groups = permission_object.sharable_groups? permission_object.sharable_groups : "logged_in";
+        write.sharable_groups = permission_object.sharable_groups? permission_object.sharable_groups : "self";
     } else if (write.type == "folder_delegate") {
         write.sharable_folders = permission_object.sharable_folders? permission_object.sharable_folders : ['/'];
-        write.sharable_groups = permission_object.sharable_groups? permission_object.sharable_groups : "logged_in";
+        write.sharable_groups = permission_object.sharable_groups? permission_object.sharable_groups : "self";
     } else if (write.type == "outside_scripts") {
         write.script_url = permission_object.script_url? permission_object.script_url : null;   
     } else if (write.type == "web_connect") {
@@ -727,6 +726,8 @@ exports.updatePermission = function(oldPerm, action, newPerms, callback) {
     // Note user_id, requestor_app, requestee_app, permission_name Already verified to find the right record. 
     // action can be null, "Accept" or "Deny"
     //onsole.log("updatePermission "+action)
+    //onsole.log("updatePermission old"+JSON.stringify(oldPerm))
+    //onsole.log("updatePermission new "+JSON.stringify(newPerms))
 
     if (!oldPerm || !oldPerm._id || (action=="Accept" && !newPerms ) ) {
         callback(helpers.missing_data("permission data", "freezr_db", exports.version, "updatePermission"))
@@ -788,22 +789,24 @@ exports.all_granted_app_permissions_by_name = function (requestor_app, requestee
     var dbQuery = {'$and': [{"granted":true}, {$or:[{"outDated":false}, {"outDated":null}] } ,   {'requestee_app':requestee_app}, {'requestor_app':requestor_app}, {'permission_name':permission_name}]};
     //var dbQuery {'$and': [{"granted":true}, {"outDated":false},  {'requestee_app':requestee_app}, {'requestor_app':requestor_app}, {'permission_name':permission_name}]};
     if (type) dbQuery.$and.push({"type":type})
-    /onsole.log("all_granted_app_permissions_by_name"+JSON.stringify(dbQuery));
+    //onsole.log("all_granted_app_permissions_by_name"+JSON.stringify(dbQuery));
     db_main.permissions.find(dbQuery)
         .skip(0)
         .toArray(callback);
         // todo - at callback also review each user's permission to make sure it's not outdated
 }
 // Checking permission similarity
-var all_fields_to_check_for_permission_equality = ['type','requestor_app','requestee_app','collection', 'sort_fields','permission_name','allowed_groups','allowed_user_ids','permitted_fields' ,'return_fields','max_count','permitted_folders'];
-var fields_for_checking_query_is_permitted = ['type','requestor_app','requestee_app','collection','sort_fields','permission_name','allowed_groups','allowed_user_ids','permitted_fields','return_fields','permitted_folders'];
+var all_fields_to_check_for_permission_equality = ['type','requestor_app','requestee_app','collection', 'sort_fields','permission_name','sharable_groups','allowed_user_ids','permitted_fields' ,'return_fields','max_count','permitted_folders'];
+var fields_for_checking_query_is_permitted = ['type','requestor_app','requestee_app','collection','sort_fields','permission_name','sharable_groups','allowed_user_ids','permitted_folders'];
 // check if permitted
 var queryParamsArePermitted = function(query, permitted_fields) {
     // go through query and strip out all params an then make sure they are in permitted fields
+    //onsole.log("queryParamsArePermitted query "+JSON.stringify(query))
+    //onsole.log("queryParamsArePermitted permitted_fields"+JSON.stringify(permitted_fields))
     if (!query || Object.keys(query).length == 0) {
         return true;
     } else if (!permitted_fields || Object.keys(permitted_fields).length == 0) {
-        return false;
+        return true;
     } else {
         var queriedParams = getQueryParams(query);
         var allFieldsMatched = true;
@@ -818,6 +821,10 @@ var queryParamsArePermitted = function(query, permitted_fields) {
 exports.queryIsPermitted = function(user_permission, query_schema, specific_params) {
     //// Permissions are held specifically for each users... so they actual permission given needs to be compared to the one in the app_config
     // specific params come from the body (query_params) 
+    //onsole.log("queryIsPermitted userpermission" + JSON.stringify(user_permission) );
+    //onsole.log("queryIsPermitted query_schema" +JSON.stringify(query_schema))
+    //onsole.log("queryIsPermitted specific_params" +JSON.stringify(specific_params))
+    
     if (!specific_params.count) specific_params.count = user_permission.max_count;
     if (!specific_params.skip) specific_params.skip = 0;
     return objectsAreSimilar(fields_for_checking_query_is_permitted, user_permission,query_schema) 
@@ -860,12 +867,13 @@ exports.field_requested_is_permitted = function(permission_model,requested_field
         return false;
     }
 }
-exports.permission_object_from_app_config_params = function(app_config_params, permission_name, requestee_app) {
+exports.permission_object_from_app_config_params = function(app_config_params, permission_name, requestee_app, requestor_app) {
     var returnpermission = app_config_params;
     if (!app_config_params) return null;
+    //onsole.log("permission_object_from_app_config_params app_config_params "+JSON.stringify(app_config_params));
 
     returnpermission.permission_name = permission_name;
-    if (!returnpermission.requestor_app) {returnpermission.requestor_app = requestee_app;}
+    if (!returnpermission.requestor_app) {returnpermission.requestor_app = requestor_app? requestor_app:requestee_app;}
     if (!returnpermission.requestee_app) {returnpermission.requestee_app = requestee_app;}
     return returnpermission;
 }

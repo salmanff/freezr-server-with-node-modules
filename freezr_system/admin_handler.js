@@ -128,7 +128,6 @@ exports.first_registration = function (req, res) {
                 }
 
                 db_main.init_admin_db(true, function (err, results) {
-                    console.log("going to init")
                     if (err) {
                         var theErr = helpers.internal_error("admin_handler", exports.version,"first_registration","Database is not available. Make sure you have MongoDb running. You may need to re-initiate the et up process by removing the database and changing the config.js file.");
                         helpers.send_failure(res, theErr, "admin_handler", exports.version, "init_admin_db" )

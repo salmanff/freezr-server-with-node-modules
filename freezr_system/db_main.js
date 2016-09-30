@@ -149,8 +149,6 @@ exports.getAllCollectionNames = function(app_name, callback) {
             };
         }
     ], function (err, names) {
-        console.log("got names "+JSON.stringify(names))
-        console.log("got err "+JSON.stringify(err))
         if (err) {
             callback(null, null);
         } else if (names){

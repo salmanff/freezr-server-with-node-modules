@@ -58,6 +58,19 @@ body {
     -webkit-transform: translate3d(0, 0, 0);
 
 }
+.appLogin_input{
+	min-width:200px;
+    width: 300px;
+    border: 1px grey solid;
+    display: inline-block;
+    text-align: left;
+    padding: 2px;
+	margin-bottom: 15px;
+}
+.appLogin_name {
+	margin-top: 10px;
+	vertical-align: top;
+}
 #freezer_dialogueInnerText {
 
 }
@@ -102,6 +115,10 @@ body {
 	font-weight: normal;
 	z-index: 99;
 }
+#freezr_server_login_butt {
+	float: none;
+	width: 150px;
+}
 .freezer_BoxTitle {
 	font-weight: bold;
 	margin-top: 10px;
@@ -111,7 +128,7 @@ body {
 	float:left;
 	color:blue;
 	text-align:center;
-	height:17px;
+	height:34px;
 	min-width:60px;
 	padding:10px;
 	margin:5px;

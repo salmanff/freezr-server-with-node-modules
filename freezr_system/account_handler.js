@@ -20,6 +20,7 @@ exports.generate_login_page = function (req, res) {
             page_title: (req.params.app_name? "Freezr App Login for "+req.params.app_name : " Login (Freezr)"),
             css_files: 'info.freezr.public/freezr_style.css',
             initial_data: null, 
+            server_name: req.protocol+"://"+req.get('host'),
             app_name: (req.params.app_name? req.params.app_name:"info.freezr.account"),
             other_variables: "var login_for_app_name="+(req.params.app_name? ("'"+req.params.app_name+"';"):"null")+";" + " var loginAction = "+(req.params.loginaction? ("'"+req.params.loginaction+"';"):"null")+";"
         } 
@@ -62,6 +63,7 @@ exports.generate_applogin_results = function (req, res) {
         initial_data: null,
         app_name: "info.freezr.account",
         other_variables: null,
+        server_name : req.protocol+"://"+req.get('host'),
         page_url:'info.freezr.public/blankHtml.html',
         script_files: null
     } 
@@ -104,6 +106,7 @@ exports.generateAccountPage = function (req, res) {
         options.app_name = "info.freezr.account";
         options.user_id =req.session.logged_in_user_id;
         options.user_is_admin =req.session.logged_in_as_admin;
+        options.server_name = req.protocol+"://"+req.get('host');
         helpers.load_page_skeleton(res, options);
     } else {
         res.redirect("/account/home");
@@ -179,21 +182,38 @@ exports.login = function (req, res) {
     ],
     function (err, source_app_code) {
         if (!err) {
-            helpers.send_success(res, { logged_in: true , "login_for_app_name":req.body.login_for_app_name, 'source_app_code':source_app_code});
+            helpers.send_success(res, { logged_in: true , "login_for_app_name":req.body.login_for_app_name, 'source_app_code':source_app_code, 'user_id':user_id});
         } else {
             helpers.send_failure(res, err,"account_handler", exports.version,"login");
         }
     });
 };
+exports.ping = function (req, res) {
+    // /v1/account/ping/app_name
+    if (!req.session.logged_in_user_id) {
+        helpers.send_success(res, { logged_in: false});
+    } else{
+        helpers.send_success(res, { logged_in: true, 'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version});
+    } 
+};
 exports.logout = function (req, res) {
+    req.session.logged_in = false;
+    req.session.logged_in_user_id = null;
+    req.session.logged_in_date = null;
+    req.session.logged_in_as_admin = false; 
+    helpers.send_success(res, { 'logged_out': true });
+}
+
+exports.logout_page = function (req, res) {
     // /account/logout
     req.session.logged_in = false;
     req.session.logged_in_user_id = null;
     req.session.logged_in_date = null;
-    req.session.logged_in_as_admin = false;
+    req.session.logged_in_as_admin = false; 
 
     res.redirect("/account/login");
 }
+
 exports.changePassword = function (req, res) {
     // /v1/account/changePassword.json
     //onsole.log("Changing password  "+JSON.stringify(req.body));
@@ -627,7 +647,7 @@ exports.add_uploaded_app_zip_file = function (req, res) {
 // PERMISSSIONS
 exports.changeNamedPermissions = function(req, res) {
     //app.put ('/v1/permissions/change/:requestee_app/:source_app_code', userDataAccessRights, account_handler.changePermissions); 
-    //onsole.log("changePermissions "+JSON.stringify(req.body));
+    console.log("changePermissions "+JSON.stringify(req.body));
     
     if (req.body.changeList && req.body.changeList.length==1 && req.body.changeList[0].permission_name && req.body.changeList[0].action && req.body.changeList[0].permission_object) {
         var permission_name = req.body.changeList[0].permission_name;
@@ -635,14 +655,14 @@ exports.changeNamedPermissions = function(req, res) {
         var permission_object = req.body.changeList[0].permission_object;
 
         var requestee_app = req.params.requestee_app;
-        var requestor_app  = req.body.changeList[0].requestor_app? req.body.changeList[0].requestor_app: requestee_app;
+        var requestor_app  = (permission_object && permission_object.requestor_app)? permission_object.requestor_app: requestee_app;
         
-        var app_config=helpers.get_app_config(requestee_app);
+        var app_config=helpers.get_app_config(requestor_app);
         var app_config_permissions = (app_config && app_config.permissions && Object.keys(app_config.permissions).length > 0)? JSON.parse(JSON.stringify( app_config.permissions)) : null;
-        var schemad_permission = freezr_db.permission_object_from_app_config_params(app_config_permissions[permission_name], permission_name, requestee_app);
+        var schemad_permission = freezr_db.permission_object_from_app_config_params(app_config_permissions[permission_name], permission_name, requestee_app, requestor_app);
 
         if (schemad_permission && schemad_permission.type == "folder_delegate") permission_object.collection="files";
-
+            
         async.waterfall([
             // 1. Check all data needed exists 
             function (cb) {
@@ -655,7 +675,7 @@ exports.changeNamedPermissions = function(req, res) {
 
             // 2. Check user App Code 
             function (cb) {
-                freezr_db.check_app_code(req.session.logged_in_user_id, requestor_app, req.params.source_app_code, cb); 
+                freezr_db.check_app_code(req.session.logged_in_user_id, requestee_app, req.params.source_app_code, cb); 
             },
 
             // 3. get current permission record
@@ -730,9 +750,10 @@ exports.all_app_permissions = function(req, res) {
                     permission_name = all_userAppPermissions[i].permission_name;
 
                     //onsole.log("app_config_permissions "+JSON.stringify(app_config_permissions));
-
+                    
                     if (aPermission.requestor_app !=requestee_app) {
                         // Other apps have requested permission - just add them
+                        // Need to check changes here.
                         returnPermissions.push(aPermission);
                     } else if (app_config_permissions && app_config_permissions[permission_name]) {
                         schemad_permission = freezr_db.permission_object_from_app_config_params(app_config_permissions[permission_name], permission_name, requestee_app)

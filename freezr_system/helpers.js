@@ -190,15 +190,19 @@ var path = require('path'),
                     opt.page_url = 'fileNotFound.html';
                 }
 
-                //onsole.log("Options ARE "+JSON.stringify(opt))
+                console.log("Options ARE "+JSON.stringify(opt))
 
-                contents = contents.replace('{{PAGE_TITLE}}', opt.page_title? opt.page_title: "freezr.info")
-                contents = contents.replace('{{PAGE_URL}}', '"'+exports.partPathToAppFiles(opt.app_name, opt.page_url)+'"');
+                contents = contents.replace('{{PAGE_TITLE}}', opt.page_title? opt.page_title: "app - freezr");
+                contents = contents.replace('{{PAGE_URL}}', exports.partPathToAppFiles(opt.app_name, opt.page_url) );
                 contents = contents.replace('{{INITIAL_DATA}}', JSON.stringify(opt.initial_data) );
-                contents = contents.replace('{{APP_CODE}}', opt.app_code? ("'"+opt.app_code+"'"): '""');
-                contents = contents.replace('{{APP_NAME}}', ("'"+opt.app_name+"'"));
-                contents = contents.replace('{{USER_ID}}', opt.user_id? "'"+opt.user_id+"'" : '""');
+                contents = contents.replace('{{APP_CODE}}', opt.app_code? opt.app_code: '');
+                contents = contents.replace('{{APP_NAME}}', opt.app_name);
+                contents = contents.replace('{{APP_VERSION}}', (opt.app_version));
+                contents = contents.replace('{{APP_DISPLAY_NAME}}', (opt.app_display_name? opt.app_display_name: opt.app_name));
+                contents = contents.replace('{{USER_ID}}', opt.user_id? opt.user_id: '');
                 contents = contents.replace('{{USER_IS_ADMIN}}', opt.user_is_admin? opt.user_is_admin : false);
+                contents = contents.replace('{{FREEZR_SERVER_VERSION}}', (opt.freezr_server_version? opt.freezr_server_version: "N/A"));
+                contents = contents.replace('{{SERVER_NAME}}', opt.server_name);
 
 
                 var css_files = "", thePath;
