@@ -30,7 +30,7 @@ var gotRegisterStatus = function(data) {
   } else if (data.error) {
     showError("Error. "+data.message);
   } else {
-    window.location = "/account/home";
+    window.location = "/admin/registration_success";
   }
 }
 var randomText = function(textlen) {

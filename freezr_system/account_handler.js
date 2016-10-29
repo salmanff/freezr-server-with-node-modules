@@ -24,8 +24,7 @@ exports.generate_login_page = function (req, res) {
             app_name: (req.params.app_name? req.params.app_name:"info.freezr.account"),
             other_variables: "var login_for_app_name="+(req.params.app_name? ("'"+req.params.app_name+"';"):"null")+";" + " var loginAction = "+(req.params.loginaction? ("'"+req.params.loginaction+"';"):"null")+";"
         } 
-        config = require("../freezr_system/config.js");
-        if (!config.params.freezr_is_setup) {
+        if (!req.freezr_is_setup) {
             options.page_title = "Freezr Set Up";
             options.page_url= 'info.freezr.public/admin_firstSetUp.html';
             options.script_files = ['/app_files/info.freezr.public/admin_firstSetUp.js'];
@@ -53,6 +52,20 @@ exports.generate_login_page = function (req, res) {
             });
         }
     }
+};
+exports.generate_error_page = function (req, res) {
+    // '/account/login' or '/account/applogin/login/:app_name'
+
+    console.log("generate_error_page accounts login with url "+JSON.stringify(req.url)+" startup_errors = "+JSON.stringify(req.freezr_fatal_error)+"'")
+    var options = {
+        page_title: "Fatal Error  (Freezr)",
+        server_name: req.protocol+"://"+req.get('host'),
+        page_url: 'info.freezr.public/admin_fatalError.html',
+        app_name: "info.freezr.account",
+        script_files : ['/app_files/info.freezr.public/admin_fatalError.js'],
+        other_variables: "var startup_errors = "+JSON.stringify(req.freezr_fatal_error)
+    } 
+    helpers.load_page_skeleton(res, options);
 };
 exports.generate_applogin_results = function (req, res) {
     // /account/applogin/results

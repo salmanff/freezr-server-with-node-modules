@@ -100,37 +100,40 @@ exports.first_registration = function (req, res) {
     var uid = freezr_db.user_id_from_user_input(req.body.user_id);
     var isAdmin = true;
     var register_type = "setUp";
-    var config = require("../freezr_system/config.js");
+
     var db_main = require('../freezr_system/db_main.js');
 
     function send_1st_reg_auth_fail(message) {helpers.send_auth_failure(res, "admin_handler", exports.version,"first_registration",message); }
 
-    if (config.params.freezr_is_setup)
+    var init;
+    if (fs.existsSync(helpers.fullPath("userfiles/init.js"))) {
+        init = require(helpers.fullPath("userfiles/init.js"))
+    } else {
+        init = {
+            params:{
+                "freezr_is_setup":false,
+                "first_user": null
+            }
+        }
+    }
+    if (init.params.freezr_is_setup) {
         send_1st_reg_auth_fail("System is already initiated.");
-    else if (!uid) 
+    } else if (!uid) 
         send_1st_reg_auth_fail("User id needed to initiate.");
     else if (!helpers.user_id_is_valid(uid))
         send_1st_reg_auth_fail("User id needed to initiate.");
     else if (!req.body.password)
         helpers.send_failure(res, helpers.missing_data("password"));
     else {
-        config.params.freezr_is_setup = true;
-        config.params.first_user = uid;
-
-        fs.writeFile("./freezr_system/config.js", "exports.params=" + JSON.stringify(config.params), function(err) {
+        // first test ability to write files
+        fs.writeFile(helpers.fullPath("userfiles/init.js"), "exports.params=" + JSON.stringify(init.params), function(err) {
             if(err) {
                 helpers.send_internal_err_failure(res, "admin_handler", exports.version,"first_registration","failrure to write - "+err);
             } else {
-                try {
-                    delete require.cache[require.resolve('../freezr_system/config.js')]
-                } catch (e) {
-                    send_internal_err_failure(res, "admin_handler", exports.version,"first_registration","Could not renew cache and did not initiate db - err:"+e);
-                }
-
+                // to do - check if users exist in db - if so, registration shouldn't be allowed - extra precaution
                 db_main.init_admin_db(true, function (err, results) {
                     if (err) {
-                        var theErr = helpers.internal_error("admin_handler", exports.version,"first_registration","Database is not available. Make sure you have MongoDb running. You may need to re-initiate the et up process by removing the database and changing the config.js file.");
-                        helpers.send_failure(res, theErr, "admin_handler", exports.version, "init_admin_db" )
+                        helpers.send_internal_err_failure(res, "admin_handler", exports.version,"first_registration","Database is not available. Make sure you have MongoDb running -"+err);
                     } else {
                         freezr_db.add_user(uid, req.body.password, null, null, true, "_self_", function (err, user_json) {
                             if (err) {
@@ -141,18 +144,24 @@ exports.first_registration = function (req, res) {
                                     if (err) {
                                         helpers.send_internal_err_failure(res, "admin_handler", exports.version,"first_registration","failrure to get a device code - "+err);
                                     } else {
+                                        init.params= {  freezr_is_setup:true, first_user:uid};
+                                        fs.writeFile(helpers.fullPath("userfiles/init.js"), "exports.params=" + JSON.stringify(init.params), function(err) {
+                                            if(err) {
+                                                helpers.send_internal_err_failure(res, "admin_handler", exports.version,"first_registration","SERIOUS failure to write init file - "+err);
+                                            } else {
+                                                console.log("first_registration done - setting cookie ");
 
-                                        console.log("first_registration set cookie "+JSON.stringify(req.session));
-
-                                            var u = new User(user_json);
-                                            if (register_type=="setUp") {
-                                                req.session.logged_in = true;
-                                                req.session.logged_in_user_id = freezr_db.user_id_from_user_input(req.body.user_id);
-                                                req.session.logged_in_date = new Date();
-                                                req.session.logged_in_as_admin = u.isAdmin;
-                                                req.session.device_code = device_code;
+                                                var u = new User(user_json);
+                                                if (register_type=="setUp") {
+                                                    req.session.logged_in = true;
+                                                    req.session.logged_in_user_id = freezr_db.user_id_from_user_input(req.body.user_id);
+                                                    req.session.logged_in_date = new Date();
+                                                    req.session.logged_in_as_admin = u.isAdmin;
+                                                    req.session.device_code = device_code;
+                                                }
+                                                helpers.send_success(res, {user: u.response_obj() });
                                             }
-                                            helpers.send_success(res, {user: u.response_obj() });
+                                        });
                                     }
                                 });
                             }

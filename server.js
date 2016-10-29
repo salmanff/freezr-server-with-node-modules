@@ -14,8 +14,7 @@ var fs = require('fs'),
     cookieSession = require('cookie-session'),
     session = require('express-session'),
     app = express();
-var config = require("./freezr_system/config.js");
-    db_main = require('./freezr_system/db_main.js'),
+var db_main = require('./freezr_system/db_main.js'),
     admin_handler = require('./freezr_system/admin_handler.js'),
     account_handler = require('./freezr_system/account_handler.js'),
     helpers = require('./freezr_system/helpers.js'),
@@ -30,11 +29,58 @@ app.use(bodyParser.json({limit:1024*1024*3, type:'application/json'}));
 app.use(bodyParser.urlencoded( { extended:true,limit:1024*1024*3,type:'application/x-www-form-urlencoding' } ) ); 
 app.use(cookieParser());
 
-
-if (config.params.session_cookie_secret == ".uninitiated") {
-    // 
-    config.params.session_cookie_secret = helpers.randomText(10);
+var freezrStatus = {
+    allOkay:true,
+    running: {
+        db:true,
+        fileSys:true,
+        fileWrite:true
+    }
 }
+var config;
+if (fs.existsSync(helpers.fullPath("userfiles/config.js"))) {
+    config = require(helpers.fullPath("userfiles/config.js"))
+} else {
+    config = {
+        params:{
+            "db_config":{
+                "host":"localhost",
+                "password":null
+            },
+            "session_cookie_secret":helpers.randomText(10),
+
+            "connect_on_local_wifi_only":true,
+            "do_admin_on_local_wifi_only":true
+        }
+    }
+}
+var oldConfig;
+try {
+    oldConfig = require("./freezr_system/config.js");
+} catch (e) {
+    oldConfig = null;
+}
+var init;
+if (fs.existsSync(helpers.fullPath("userfiles/init.js"))) {
+    init = require(helpers.fullPath("userfiles/init.js"))
+} else if (oldConfig && oldConfig.params && oldConfig.params.freezr_is_setup) {
+    // transitional - to delete
+    init = {
+        params:{
+            "freezr_is_setup":true,
+            "first_user": oldConfig.params.first_user
+        }
+    }
+        
+} else {
+    init = {
+        params:{
+            "freezr_is_setup":false,
+            "first_user": null
+        }
+    }
+}
+
 
 app.use(cookieSession(
     {
@@ -89,12 +135,14 @@ var appFileAccessRights = function(req, res, next) {
     var filePath = helpers.fullPath(fileUrl,true);
     filePath = filePath.replace("freezr_system\\app","app")
 
-    if (!fs.existsSync( filePath)) {
+    //onsole.log("file path is "+filePath)
+
+    if (!freezrStatus.allOkay || !fs.existsSync( filePath)) {
         if (!helpers.endsWith(fileUrl,"logo.png")) {
             helpers.warning("freezr.js", VERSION, "appFileAccessRights", "link to non-existent file "+filePath );
         }
         res.sendStatus(401);
-    } else if(config.params.freezr_is_setup && ((req.session && req.session.logged_in) || (app_name == "info.freezr.public") )) {
+    } else if((init.params.freezr_is_setup && (req.session && req.session.logged_in) || (app_name == "info.freezr.public") )) {
         //onsole.log("appFileAccessRights send "+helpers.fullPath(fileUrl));
         res.sendFile(filePath);
     } else {
@@ -103,7 +151,9 @@ var appFileAccessRights = function(req, res, next) {
     }
 }
 var appPageAccessRights = function(req, res, next) {
-    if ((config.params.freezr_is_setup && req.session && req.session.logged_in) ){
+    if (!freezrStatus.allOkay) {
+        res.redirect("/admin/starterror");
+    } else if ((init.params.freezr_is_setup && req.session && req.session.logged_in) ){
         if (req.params.page || helpers.endsWith(req.originalUrl,"/") ) {
             req.freezr_server_version = VERSION;
             next();
@@ -118,7 +168,9 @@ var appPageAccessRights = function(req, res, next) {
 var userDataAccessRights = function(req, res, next) {
     // todo - this can be made more sophisticated with per app per user access via mongo
     //onsole.log("userDataAccessRights sess "+(req.session?"Y":"N")+"  loggin in? "+(req.session.logged_in?"Y":"N"));
-    if (config.params.freezr_is_setup && req.session && req.session.logged_in && req.session.logged_in_userid == req.params.userid){
+    if (!freezrStatus.allOkay) {
+        res.sendStatus(401);
+    } else if (init.params.freezr_is_setup && req.session && req.session.logged_in && req.session.logged_in_userid == req.params.userid){
         next();
     } else {
         helpers.auth_warning("freezr.js", VERSION, "userDataAccessRights", "Unauthorized attempt to access data "+req.url+" without login ");
@@ -127,7 +179,11 @@ var userDataAccessRights = function(req, res, next) {
 }
 function requireAdminRights(req, res, next) {
     //onsole.log("require admin login ");
-    if (config.params.freezr_is_setup && req.session && req.session.logged_in_as_admin) {
+    if (!freezrStatus.allOkay) {
+        if (helpers.startsWith(helpers.normUrl(req.originalUrl),'/admin')) {
+                 res.redirect("/admin/starterror");
+        } else { res.sendStatus(401);}
+    } if (init.params.freezr_is_setup && req.session && req.session.logged_in_as_admin) {
         req.freezr_server_version = VERSION;
         next();
     } else {
@@ -137,7 +193,13 @@ function requireAdminRights(req, res, next) {
 }
 function requireUserRights(req, res, next) {
     //onsole.log("require user rights login "+req.params.user_id+ " vs "+JSON.stringify(req.session));
-    if (config.params.freezr_is_setup && req.session && (req.url == "/account/login" || helpers.startsWith(req.url,'/account/applogin') || req.session.logged_in_user_id )) {
+    if (!init.params.freezr_is_setup && fs.existsSync(helpers.fullPath("userfiles/init.js"))) {
+        console.log("Resetting init.js - first page visited after set up")
+        init = require(helpers.fullPath("userfiles/init.js"));
+    }
+    if (!freezrStatus.allOkay) {
+        res.redirect("/admin/starterror");
+    } else if (init.params.freezr_is_setup && req.session && (req.url == "/account/login" || helpers.startsWith(req.url,'/account/applogin') || req.session.logged_in_user_id )) {
         req.freezr_server_version = VERSION;
         next();
     } else {
@@ -146,22 +208,16 @@ function requireUserRights(req, res, next) {
     }
 }
 function ensureThisIsFirstSetUp (req, res, next) {
-    if (!config.params.freezr_is_setup && req.body.register_type == "setUp") {
+    if (!freezrStatus.allOkay) {
+        res.sendStatus(401);
+    } else if (!init.params.freezr_is_setup && req.body.register_type == "setUp") {
         next();
     } else {
         helpers.auth_warning("freezr.js", VERSION, "ensureThisIsFirstSetUp", "Unauthorized attempt to set up system which has already been set up. ");
-        res.redirect("/account/login");
+        res.sendStatus(401);
     }
 }
-function requirePageLogin(req, res, next) {
-    //onsole.log("require page login");
-    if (req.session && req.session.logged_in) {
-        next();
-    } else {
-        helpers.auth_warning("freezr.js", VERSION, "ensureThisIsFirstSetUp", "Unauthorized attempt to set up system which has already been set up. ");
-        res.redirect("/account/login");
-    }
-}
+
 function uploadFile(req,res) {
     upload(req, res, function (err) {
         if (err) {
@@ -180,6 +236,16 @@ function uploadAppZipFile(req,res) {
 }
 function addVersionNumber(req, res, next) {
     req.freezr_server_version = VERSION;
+    next();
+}
+function addRegistrationStatus(req, res, next) {
+    req.freezr_server_version = VERSION;
+    req.freezr_is_setup = init.params.freezr_is_setup;
+    next();
+}
+function addFatalErrorCause(req, res, next) {
+    req.freezr_server_version = VERSION;
+    req.freezr_fatal_error = freezrStatus;
     next();
 }
 
@@ -218,7 +284,7 @@ function addVersionNumber(req, res, next) {
 
     // account pages
         app.get ('/account/logout', addVersionNumber, account_handler.logout_page);
-        app.get ('/account/login', addVersionNumber, account_handler.generate_login_page);
+        app.get ('/account/login', addRegistrationStatus, account_handler.generate_login_page);
         app.get ('/account/applogin/login/:app_name', addVersionNumber, account_handler.generate_login_page);
         app.get ('/account/applogin/results', account_handler.generate_applogin_results);
         app.get ('/account/:sub_page', requireUserRights, account_handler.generateAccountPage);
@@ -235,6 +301,17 @@ function addVersionNumber(req, res, next) {
         app.post('/account/v1/appMgmtActions.json', requireUserRights, account_handler.appMgmtActions);
 
     // admin pages
+        app.get("/admin/registration_success", function (req, res) {
+            try {
+                delete require.cache[require.resolve(helpers.fullPath('userfiles/init.js'))]
+            } catch (e) {
+                helpers.internal_error("server", exports.version,"registration_success","Could not renew cache and did not initiate db - err:"+e);
+            }
+            init = require(helpers.fullPath("userfiles/init.js"));
+            res.redirect("/account/home");
+            res.end();
+        });
+        app.get('/admin/starterror', addFatalErrorCause, account_handler.generate_error_page);
         app.get('/admin/:sub_page', requireAdminRights, admin_handler.generateAdminPage);
         app.put ('/v1/admin/user_register', requireAdminRights, admin_handler.register); 
         app.put ('/v1/admin/first_registration', ensureThisIsFirstSetUp, admin_handler.first_registration); 
@@ -255,33 +332,39 @@ function addVersionNumber(req, res, next) {
 console.log("runnning ipaddress"+ipaddress+" port "+port);
 // RUN APP 
     if (!helpers.setupFileSys() ) {
+        freezrStatus.allOkay=false;
+        freezrStatus.running.fileSys = false;
         console.error("** FATAL ERROR Setting up file system. ");
-        process.exit(-1);
-    } else if (config.params.freezr_is_setup) {
+        app.listen(port, ipaddress);
+    } else if (init.params.freezr_is_setup) {
         db_main.init_admin_db(false, function (err, results) {
             if (err) {
-                console.error("** FATAL ERROR ON STARTUP (1): "+JSON.stringify(err));
-                process.exit(-1);
-            }
-            console.log("Initialisation complete.");
-
-            require('dns').lookup(require('os').hostname(), function (err, add, fam) {
-                if (ipaddress=="localhost" && !LISTEN_TO_LOCALHOST_ON_LOCAL) ipaddress=add;
-                console.log('Running on local ip address: '+ipaddress);
+                console.error("** FATAL ERROR ON STARTUP - DB not available: "+JSON.stringify(err));
+                freezrStatus.allOkay=false;
+                freezrStatus.running.db = false;
                 app.listen(port, ipaddress);
-            })
+            }  else {            
+                require('dns').lookup(require('os').hostname(), function (err, add, fam) {
+                    if (ipaddress=="localhost" && !LISTEN_TO_LOCALHOST_ON_LOCAL) ipaddress=add;
+                    console.log('Running on local ip address: '+ipaddress);
+                    app.listen(port, ipaddress);
+                })
+            }
 
         });
     } else {
-        console.log("Running Server to start user setup.");
-        fs.writeFile("./freezr_system/config.js", "exports.params=" + JSON.stringify(config.params), function(err) {
+        fs.writeFile(helpers.fullPath("userfiles/config.js"), "exports.params=" + JSON.stringify(config.params), function(err) {
             if(err) {
-                console.error("** FATAL ERROR ON STARTUP (2): "+JSON.stringify(err));
-                process.exit(-1);
+                freezrStatus.allOkay=false;
+                freezrStatus.running.fileWrite = false;
+                console.error("** FATAL ERROR ON STARTUP -writing files: "+JSON.stringify(err));
+                app.listen(port, ipaddress);
+                //process.exit(-1);
             } else {
                 app.listen(port, ipaddress);
             }
        }); 
+        
     }
 
 

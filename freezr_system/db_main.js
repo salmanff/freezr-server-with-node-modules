@@ -3,7 +3,6 @@ exports.version = "0.0.1";
 
 var async = require('async'),
     helpers = require('./helpers.js'),
-    config = require("../freezr_system/config.js"), 
     system_env = require("../freezr_system/system_env.js"), 
     MongoClient = require('mongodb').MongoClient;
 

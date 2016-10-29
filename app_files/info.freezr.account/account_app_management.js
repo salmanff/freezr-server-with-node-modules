@@ -130,8 +130,8 @@ var buttons = {
 }
 var uploadSuccess = function() {
   buttons.updateAppList();
-  document.getElementById("freezer_dialogue_extra_title").innerHTML="Finalize Installation and Launch'."
-  document.getElementById("freezer_dialogue_extra_title").onclick=function() {buttons.goto}
+  //document.getElementById("freezer_dialogue_extra_title").innerHTML="Finalize Installation and Launch'."
+  //document.getElementById("freezer_dialogue_extra_title").onclick=function() {buttons.goto}
 }
 var remove_app_callback = function(data) {
   data = freezer_restricted.utils.parse(data);
