@@ -41,11 +41,28 @@ body{
 }
 #upload_area {
   margin-top: 50px;
+  margin-left: 10px;
+}
+#upload_butts{
+  margin-left:20px;
+  height:40px;
+  text-align: center;
+  padding: 10px;
+}
+#skipRecord, #addRecord, #addAllRecords, #addAllFiles {
+  float:none;
+}
+#current_record {
+  border:1px solid grey;
+  padding:10px;
 }
 #user_id_note{
   margin: 5px;
   padding-left: 10px;
   font-style: italic;
+}
+#upload_nums, #err_nums {
+  padding:15px;
 }
 #collection_area {
   padding-left: 15px;
@@ -65,5 +82,11 @@ body{
 #backup_status {
   margin:10px;
 }
-
-
+#recordTable {
+  table-layout: fixed; 
+  width: 100%;
+}
+tr {width:100%; vertical-align: top;}
+td {word-wrap: break-word;}
+.lhs {width:20%;}
+.rhs {width: 75%;}

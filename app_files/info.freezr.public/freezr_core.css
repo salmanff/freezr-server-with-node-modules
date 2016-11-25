@@ -115,9 +115,17 @@ body {
 	font-weight: normal;
 	z-index: 99;
 }
-#freezr_server_login_butt {
+#freezr_server_login_butt, #freezr_server_pingprelogin_butt {
 	float: none;
+	margin-top:10px;
 	width: 150px;
+}
+#freezr_server_server_name_area, #freezr_server_login_name_area{
+	padding-top:20px;
+	padding-bottom: 20px;
+}
+#freezr_server_logout_butt {
+	height:35px;
 }
 .freezer_BoxTitle {
 	font-weight: bold;
@@ -128,7 +136,7 @@ body {
 	float:left;
 	color:blue;
 	text-align:center;
-	height:34px;
+	height:20px;
 	min-width:60px;
 	padding:10px;
 	margin:5px;

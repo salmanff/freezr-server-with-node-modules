@@ -205,7 +205,16 @@ exports.ping = function (req, res) {
     // /v1/account/ping/app_name
     if (!req.session.logged_in_user_id) {
         helpers.send_success(res, { logged_in: false});
-    } else{
+    } else if (req.params.app_name) {
+        freezr_db.get_or_set_user_app_code (req.session.logged_in_user_id,req.params.app_name, function(err,results,cb){
+            if (err || !results.app_code) {
+                helpers.send_success(res, { logged_in: true, 'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version, 'error':"error_getting_app_code"});        
+            } else {
+                 helpers.send_success(res, { logged_in: true, 'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version, 'source_app_code':results.app_code});       
+            }
+        })
+
+    } else {
         helpers.send_success(res, { logged_in: true, 'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version});
     } 
 };
@@ -556,7 +565,11 @@ exports.add_uploaded_app_zip_file = function (req, res) {
             app_name = app_name.split(' ')[0];
             flags = new Flags({'app_name':app_name,'didwhat':'installed'});
 
-            cb(null);
+            if (helpers.system_apps.indexOf(app_name)>-1){
+                cb(helpers.invalid_data("app name not allowed: "+app_name, "account_handler", exports.version, "add_uploaded_app_zip_file"));
+            } else {        
+                cb(null);
+            }
         },
 
     // 3. Make sure app directory exists
@@ -646,7 +659,9 @@ exports.add_uploaded_app_zip_file = function (req, res) {
                     cb);
             }
         }
-    ],
+
+        // NB should also check app_confg permissions (as per changeNamedPermissions) to warn of any issues
+     ],
     function (err, user_json) {
         flags.meta.app_name = app_name;
         if (err) {
@@ -675,11 +690,25 @@ exports.changeNamedPermissions = function(req, res) {
         var schemad_permission = freezr_db.permission_object_from_app_config_params(app_config_permissions[permission_name], permission_name, requestee_app, requestor_app);
 
         if (schemad_permission && schemad_permission.type == "folder_delegate") permission_object.collection="files";
-            
+        
+        console.log("Schemad permission is "+JSON.stringify(schemad_permission))
+
         async.waterfall([
             // 1. Check all data needed exists 
             function (cb) {
-                if (permission_name && (action && permission_object && requestor_app && requestee_app && (permission_object.collection || (schemad_permission && schemad_permission.type == "object_delegate" && permission_object.collections) )  || (schemad_permission && schemad_permission.type == "outside_scripts" && schemad_permission.script_url && helpers.startsWith(schemad_permission.script_url,"http") )  ) ) {
+                if (!schemad_permission) {
+                    cb(helpers.missing_data("No permission schema exists"));
+                } else if (helpers.permitted_types.type_names.indexOf(schemad_permission.type)<0  ) {
+                    cb(helpers.invalid_data("Permitted types can only be specific types not "+schemad_permission.type+".","account_handler", exports.version, "changeNamedPermissions"));                
+                } else if (schemad_permission.type == "object_delegate" && helpers.permitted_types.groups_for_objects.indexOf(schemad_permission.sharable_groups[0])<0  ) {
+                    cb(helpers.invalid_data("Object delegates can only have specified sharable groups, not "+schemad_permission.sharable_groups[0]+".","account_handler", exports.version, "changeNamedPermissions"));                    
+                } else if (schemad_permission.sharable_groups && schemad_permission.sharable_groups.length>1  ) {
+                    cb(helpers.invalid_data("Only one sharable_group can be permissioned now "+schemad_permission.sharable_groups.join(',')+".","account_handler", exports.version, "changeNamedPermissions"));                    
+                } else if ((schemad_permission.type == "folder_delegate" || schemad_permission.type == "field_delegate") && helpers.permitted_types.groups_for_fileds.indexOf(schemad_permission.sharable_groups[0])<0  ) {
+                    cb(helpers.invalid_data("Field / folder delegates can only have specified sharable groups, not "+schemad_permission.sharable_groups[0]+".","account_handler", exports.version, "changeNamedPermissions"));                    
+                } else if (schemad_permission.sharable_groups=="public" && schemad_permission.requestee_app !=schemad_permission.requestor_app) {
+                    cb(helpers.invalid_data("you can only make data public via its own app","account_handler", exports.version, "changeNamedPermissions"));                    
+                } else if (permission_name && (action && permission_object && requestor_app && requestee_app && (permission_object.collection || (schemad_permission && schemad_permission.type == "object_delegate" && permission_object.collections) )  || (schemad_permission && schemad_permission.type == "outside_scripts" && schemad_permission.script_url && helpers.startsWith(schemad_permission.script_url,"http") )  ) ) {
                     cb(null)
                 } else {
                     cb(helpers.missing_data("permission related data"));

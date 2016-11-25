@@ -28,6 +28,7 @@ freezr.initPageScripts = function() {
 	document.getElementById("gotoBackUp").onclick = function() {window.open("/allmydata/backup/"+freezr_app_name,"_self");}
 	document.getElementById("saveData").onclick = function () {saveData();}
 	document.getElementById("retrieve_more").onclick = function() {retrieve_more();}
+	document.getElementById("collection_names").onchange = function() {change_collection();}
 
 	dl.meta.app_name=freezr_app_name;
 	dl.meta.user=freezr_user_id;

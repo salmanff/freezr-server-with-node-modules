@@ -8,6 +8,7 @@ var async = require('async'),
     fs = require('fs');
 
 var MongoClient = require('mongodb').MongoClient;
+const ARBITRARY_COUNT = 200;
 
 // APP_DB's - pass through to main_db
 exports.app_db_collection_get = function (app_name, collection_name, callback) { 
@@ -138,7 +139,7 @@ exports.all_users = function (sort_field, sort_desc, skip, count, callback) {
     var sort = {};
     if (sort_field) {sort[sort_field] = sort_desc ? -1 : 1;}
     skip = skip? skip: 0;
-    count = count? count:null;
+    count = count? count:ARBITRARY_COUNT;
     db_main.users.find(null)
         .sort(sort)
         .limit(count)
@@ -454,7 +455,7 @@ exports.all_apps = function (sort_field, sort_desc, skip, count, callback) {
     var sort = {};
     sort[sort_field] = sort_desc ? -1 : 1;
     skip = skip? skip:0;
-    count = count? count:null;
+    count = count? count:ARBITRARY_COUNT;
     db_main.installed_app_list.find()
         .sort(sort)
         .limit(count)
@@ -468,7 +469,7 @@ exports.all_user_apps = function (user_id, sort_field, sort_desc, skip, count, c
         var sort = {};
         sort[sort_field] = sort_desc ? -1 : 1;
         skip = skip? skip:0;
-        count = count? count:null;
+        count = count? count:ARBITRARY_COUNT;
         db_main.user_installed_app_list.find({'_creator':user_id})
             .sort(sort)
             .limit(count)
@@ -478,11 +479,11 @@ exports.all_user_apps = function (user_id, sort_field, sort_desc, skip, count, c
 };
 exports.getAllCollectionNames = function (app_name, callback) {
     db_main.getAllCollectionNames(app_name, function(err, names) {
-        //onsole.log("Got name in freezr_db "+JSON.stringify(names))
+        console.log("Got name in freezr_db "+JSON.stringify(names))
         var a_name, collection_names=[];
         if (names && names.length > 0) {
             names.forEach(function(name_obj) {
-                a_name = name_obj.name.split(".")[1];
+                a_name = name_obj.name; // .split(".")[1];
                 if (a_name && a_name!="system") collection_names.push(a_name)
             });
         }
@@ -871,6 +872,7 @@ exports.permission_object_from_app_config_params = function(app_config_params, p
     var returnpermission = app_config_params;
     if (!app_config_params) return null;
     //onsole.log("permission_object_from_app_config_params app_config_params "+JSON.stringify(app_config_params));
+    
 
     returnpermission.permission_name = permission_name;
     if (!returnpermission.requestor_app) {returnpermission.requestor_app = requestor_app? requestor_app:requestee_app;}

@@ -19,7 +19,8 @@ var db_main = require('./freezr_system/db_main.js'),
     account_handler = require('./freezr_system/account_handler.js'),
     helpers = require('./freezr_system/helpers.js'),
     system_env = require('./freezr_system/system_env.js'),
-    app_handler = require('./freezr_system/app_handler.js');
+    app_handler = require('./freezr_system/app_handler.js'),
+    public_handler = require('./freezr_system/public_handler.js');
 
 var ipaddress = system_env.ipaddress();
 var port      = system_env.port();
@@ -71,6 +72,14 @@ if (fs.existsSync(helpers.fullPath("userfiles/init.js"))) {
             "first_user": oldConfig.params.first_user
         }
     }
+        fs.writeFile(helpers.fullPath("userfiles/config.js"), "exports.params=" + JSON.stringify(config.params), function(err) {
+            if(err) {
+                console.log("ERROR WRITING new config ")
+            } else {
+                console.log("Wrote new config succcessfully")
+            }
+       }); 
+
         
 } else {
     init = {
@@ -149,6 +158,36 @@ var appFileAccessRights = function(req, res, next) {
         helpers.auth_warning("freezr.js", VERSION, "appFileAccessRights", "Unauthorized attempt to access file "+filePath );
         res.sendStatus(401);
     }
+}
+var publicAppFiles = function(req, res, next) {
+
+    var fileUrl = req.originalUrl;
+
+    // clean up url
+    if (helpers.startsWith(fileUrl,'/app_files/')) { fileUrl = fileUrl.replace('/app_files/','app_files/')}
+    else if (helpers.startsWith(fileUrl,'/apps/')) { fileUrl = fileUrl.replace('/apps/','app_files/')} 
+    else if (helpers.startsWith(fileUrl,'/htmlsnippet/')) { 
+            fileUrl = fileUrl.replace('/htmlsnippet/','app_files/')
+        };
+
+    if (fileUrl.indexOf('?')>1) { fileUrl = fileUrl.substr(0,fileUrl.indexOf('?'));} // solving slight problem when node.js adds a query param to some fetches
+
+    var path_parts = fileUrl.split("/");
+    var app_name = path_parts[1];
+
+    var filePath = helpers.fullPath(fileUrl,true);
+    filePath = filePath.replace("freezr_system\\app","app")
+
+    //onsole.log("file path is "+filePath)
+
+    if (!freezrStatus.allOkay || !fs.existsSync( filePath)) {
+        if (!helpers.endsWith(fileUrl,"logo.png")) {
+            helpers.warning("freezr.js", VERSION, "publicAppFiles", "link to non-existent file "+filePath );
+        }
+        res.sendStatus(401);
+    } else  {
+        res.sendFile(filePath);
+    } 
 }
 var appPageAccessRights = function(req, res, next) {
     if (!freezrStatus.allOkay) {
@@ -252,6 +291,8 @@ function addFatalErrorCause(req, res, next) {
 // APP PAGES AND FILE
     // app pages and files
         app.use("/app_files/info.freezr.public", publicFileServe);
+        app.get('/app_files/:app_name/public/static/:file', publicFileServe);
+        app.get('/app_files/:app_name/public/:file', publicFileServe);
         app.use("/app_files", appFileAccessRights);
         app.get('/apps/:app_name', appPageAccessRights, app_handler.generatePage); 
         app.get('/apps/:app_name/static/:file', appFileAccessRights);
@@ -269,6 +310,18 @@ function addFatalErrorCause(req, res, next) {
         app.put('/v1/db/write/:app_name/:source_app_code/:collection', userDataAccessRights, app_handler.putData);
         app.post('/v1/db/query/:requestor_app/:source_app_code/:requestee_app', userDataAccessRights, app_handler.db_query); 
         app.post('/v1/db/query/:requestor_app/:source_app_code/:requestee_app/:permission_name', userDataAccessRights, app_handler.db_query); 
+
+    // public 
+        app.get('/pcard/:public_id', addVersionNumber, public_handler.generatePublicPage); 
+        app.get('/ppage/:app_name/:page', addVersionNumber, public_handler.generatePublicPage); 
+        app.get('/ppage/:app_name', addVersionNumber, public_handler.generatePublicPage); 
+        app.get('/ppage', addVersionNumber, public_handler.generatePublicPage); 
+        app.get('/apps/:app_name/public/static/:file', publicAppFiles);
+        app.get('/v1/pdbq', addVersionNumber, public_handler.dbp_query); 
+        app.post('/v1/pdbq', addVersionNumber, public_handler.dbp_query); 
+        app.get('/v1/pdb/:public_id', public_handler.getPublicDataObject); 
+        app.get('/v1/pufile/:public_id', public_handler.getPublicDataObject); // collection_name is files
+
 
     // permissions
         app.put('/v1/permissions/setfieldaccess/:requestor_app/:source_app_code/:permission_name', userDataAccessRights, app_handler.setFieldAccess);
@@ -290,6 +343,7 @@ function addFatalErrorCause(req, res, next) {
         app.get ('/account/:sub_page', requireUserRights, account_handler.generateAccountPage);
 
         app.get('/v1/account/ping', addVersionNumber, account_handler.ping);
+        app.get('/v1/account/ping/:app_name', addVersionNumber, account_handler.ping);
         app.post('/v1/account/login', account_handler.login);
         app.post('/v1/account/applogin', account_handler.login);
         app.post('/v1/account/applogout', account_handler.logout);

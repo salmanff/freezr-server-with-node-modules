@@ -32,14 +32,20 @@ options:
 </div>
 
 <div id="upload_area">
-  Restoring doesn't work wth files at this point etc etc
+  <div class="freezer_dialogueTitle" >Restore</div>
+  Note that restoring doesn't work with files at this point. Also, cross referencing _id's of different collections is not stable. Manual id's are automatically added. _id's which are not specified by the app are currently ignored.<br/>
   <form id="uploadForm"><input type="file" id="fileUploader" name="files[]" multiple /></form>
   <div id="uploadAndRestoreData">Restore data by uploading file</div>
 </div>
 
-<div id="upload_nums"></div>
-<div id="err_nums"></div>
-<div id="backup_status"></div>
+<div id="upload_nums" ></div>
+<div id="err_nums"  ></div>
+<div id="backup_status" ></div>
+<div id="check_record" style="display:none">
+  <div class="freezer_dialogueTitle marginLeft" >Decide for each record or all records:</div>
+  <div id="upload_butts"><span class="freezer_butt" id="skipRecord">SKIP RECORD</span><span class="freezer_butt" id="addRecord">ADD RECORD</span><span id="addAllRecords" class="freezer_butt">ADD ALL RECORDS IN FILE</span><span id="addAllFiles" class="freezer_butt">ADD ALL FILES</span></div>
+  <div id="current_record"></div>
+</div>
 
 
 

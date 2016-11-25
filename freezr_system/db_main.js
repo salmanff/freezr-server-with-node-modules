@@ -5,6 +5,7 @@ var async = require('async'),
     helpers = require('./helpers.js'),
     system_env = require("../freezr_system/system_env.js"), 
     MongoClient = require('mongodb').MongoClient;
+var autoCloseTimeOut;
 
 exports.dbConnectionString = function(appName) {
     return system_env.dbConnectionString(appName);
@@ -72,6 +73,7 @@ exports.app_db_collection_get = function (app_name, collection_name, firstpass, 
     //onsole.log(" app_db_collection_get - "+app_name+"  -  " +collection_name+"- -");
 
     if (!running_apps_db[app_name]) running_apps_db[app_name]={'db':null, 'collections':{}};
+    if (!running_apps_db[app_name].collections) running_apps_db[app_name].collections= {collection_name:null};
     if (!running_apps_db[app_name].collections[collection_name]) running_apps_db[app_name].collections[collection_name] = null;
 
     async.waterfall([
@@ -120,13 +122,14 @@ exports.app_db_collection_get = function (app_name, collection_name, firstpass, 
             }
         } else {
             running_apps_db[app_name].last_access = new Date().getTime();
-            exports.closeUnusedApps();
+            clearTimeout(autoCloseTimeOut);
+            autoCloseTimeOut = setTimeout(exports.closeUnusedApps,30000);
             callback(null, running_apps_db[app_name].collections[collection_name]);
         }
     });
 };
 exports.getAllCollectionNames = function(app_name, callback) {
-    //onsole.log(" getAllCollectionNames - "+app_name+" hasOwnProperty "+running_apps_db.hasOwnProperty(app_name));
+    //onsole.log(" getAllCollectionNames -"+app_name+"- hasOwnProperty "+running_apps_db.hasOwnProperty(app_name));
     if (!running_apps_db[app_name]) running_apps_db[app_name]={'db':null, 'collections':{}};
     async.waterfall([
         // 1. open database connection
@@ -142,36 +145,43 @@ exports.getAllCollectionNames = function(app_name, callback) {
         function (theclient, cb) {
             if (!running_apps_db[app_name].db) running_apps_db[app_name].db = theclient;
             if (running_apps_db[app_name].db) {
-                running_apps_db[app_name].db.collectionNames(cb);
+                running_apps_db[app_name].db.listCollections().toArray(cb);
             } else {
                 cb(null);
             };
         }
-    ], function (err, names) {
+    ], function (err, nameObjList) {
         if (err) {
             callback(null, null);
-        } else if (names){
-            callback(null, names);
+        } else if (nameObjList  && nameObjList.length>0){
+            callback(null, nameObjList);
         } else {
             callback(null, []);
         }
     });
 }
 exports.closeUnusedApps = function() {
-    closeThreshold = 60000;
+    //onsole.log("closeUnusedApps...")
+    closeThreshold = 20000;
     for (var oneAppName in running_apps_db) {
         if (running_apps_db.hasOwnProperty(oneAppName) && running_apps_db[oneAppName]) {
             if (!running_apps_db[oneAppName].last_access || (new Date().getTime()) - running_apps_db[oneAppName].last_access  > closeThreshold) {
                 running_apps_db[oneAppName].collections = null;
                 if (running_apps_db[oneAppName].db) {
-                    running_apps_db[oneAppName].db.close(function(err2) {
-                        if (err2) {helpers.warning ("db_main", exports.version, "closeUnusedApps", "err closing "+oneAppName+" - "+err2);}
-                        running_apps_db[oneAppName] = null;
+                    var DbToClose = running_apps_db[oneAppName].db;
+                    delete running_apps_db[oneAppName];
+                    DbToClose.close(function(err2) {
+                        if (err2) {helpers.warning ("db_main", exports.version, "closeUnusedApps", "err closing "+oneAppName+" - "+err2); }
                     });
                 } else {
                     running_apps_db[oneAppName] = null;
                 }
             }
-        }  
+        }
+        for (var twoAppName in running_apps_db) {
+         if (running_apps_db.hasOwnProperty(twoAppName) ) console.log("unclosed dbs are "+twoAppName+" diff "+(new Date().getTime() - running_apps_db[twoAppName].last_access ) )
+        }
     }
+    clearTimeout(autoCloseTimeOut);
+    autoCloseTimeOut = setTimeout(exports.closeUnusedApps,30000);
 }

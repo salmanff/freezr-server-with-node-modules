@@ -56,6 +56,11 @@ var path = require('path'),
         console.log ("App Data ERROR in function: "+theFunction+" app_name: "+app_name+" message:"+message);
         return exports.error("app_data_error", message);
     }
+    exports.rec_missing_error = function(version, theFunction, app_name, message) {
+        console.log ("App Data ERROR in function: "+theFunction+" app_name: "+app_name+" message:"+message);
+        return exports.error("rec_missing_error", message);
+    }
+
     exports.send_auth_failure = function (res, system_file, version, theFunction, message ) {
         var err = exports.auth_failure (system_file, version, theFunction, message )
         exports.send_failure(res, err, system_file, version, theFunction, message )
@@ -133,7 +138,7 @@ var path = require('path'),
         return (checktext == longertext.slice(0,checktext.length));}
     }
     exports.endsWith = function (longertext, checktext) {
-        if (checktext.length > longertext.length) {return false} else {
+        if (!checktext || !longertext || checktext.length > longertext.length) {return false} else {
         return (checktext == longertext.slice((longertext.length-checktext.length)));}
     }
 
@@ -190,7 +195,7 @@ var path = require('path'),
                     opt.page_url = 'fileNotFound.html';
                 }
 
-                console.log("Options ARE "+JSON.stringify(opt))
+                //onsole.log("Options ARE "+JSON.stringify(opt))
 
                 contents = contents.replace('{{PAGE_TITLE}}', opt.page_title? opt.page_title: "app - freezr");
                 contents = contents.replace('{{PAGE_URL}}', exports.partPathToAppFiles(opt.app_name, opt.page_url) );
@@ -203,6 +208,9 @@ var path = require('path'),
                 contents = contents.replace('{{USER_IS_ADMIN}}', opt.user_is_admin? opt.user_is_admin : false);
                 contents = contents.replace('{{FREEZR_SERVER_VERSION}}', (opt.freezr_server_version? opt.freezr_server_version: "N/A"));
                 contents = contents.replace('{{SERVER_NAME}}', opt.server_name);
+                var nonce = exports.randomText(10)
+                contents = contents.replace('{{FREEEZR-SCRIPT-NONCE}}', nonce);
+                contents = contents.replace('{{FREEEZR-SCRIPT-NONCE}}', nonce);
 
 
                 var css_files = "", thePath;
@@ -241,11 +249,12 @@ var path = require('path'),
         );
     }
 
+
 // APP CONFIG
     exports.permitted_types = { 
-        group_permission_options: ["user","logged_in"],
-        perms_to_access_objects: ["folder_delegate","field_delegate","object_delegate"], // used in getDataObject
-
+        groups_for_objects: ["user","logged_in","public"],
+        groups_for_fields: ["user","logged_in"],
+        type_names: ["folder_delegate","field_delegate","object_delegate"], // used in getDataObject
     }
     
     exports.get_app_config = function(app_name) {
@@ -258,6 +267,7 @@ var path = require('path'),
             //returnJson = require('../app_files/'+app_name+'/app_config.js');
             returnJson = require(configPath);
         } catch (e) {
+            console.log("Error - cound not get config for ", " err: ",app_name,e)
             returnJson.structure = null;
         }
         return returnJson.structure;
@@ -309,7 +319,7 @@ var path = require('path'),
 
 
 // FILES, PATHS AND DIRECTORIES
-    const SYSTEM_APPS = ["info.freezr.account","info.freezr.admin","info.freezr.public"];
+    exports.system_apps = ["info.freezr.account","info.freezr.admin","info.freezr.public","info.freezr.permissions","info.freezr.posts"];
     const USER_DIRS = ["userfiles", "app_files", "backups"];
     exports.setupFileSys = function() {
         // reTurns false if it can't se up directories - and system fails
@@ -335,7 +345,7 @@ var path = require('path'),
     var isSystemPath = function(aUrl) {
         var parts = aUrl.split("/");
         var app_name = (parts && parts.length>1)? parts[1]:"";
-        return (SYSTEM_APPS.indexOf(app_name)>=0);
+        return (exports.system_apps.indexOf(app_name)>=0);
     }
     exports.normUrl = function(aUrl) {return path.normalize(aUrl) };
     exports.sep = function() {return path.sep };
