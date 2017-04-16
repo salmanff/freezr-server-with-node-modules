@@ -1,0 +1,86 @@
+
+<div class="freezer_texture_outer">
+  <div class="freezer_texture_inner">
+    <div class="freezer_dialogueTitle">
+      Welcome to Freezr - Initial Set Up Page.
+    </div>
+    <br/>
+    <div id="errorBox" class="errorBox"></div>
+    <center id="loader" style="display:none" ><img src="/app_files/info.freezr.public/static/ajaxloaderBig.gif"></center>
+    <form name="register" id="register">
+      <div class="freezer_app_page_title freezer_spacer">
+            Please register yourself as the first admin user. 
+      </div>     
+
+      <table>
+        <tr>
+          <td width="130px" align="right">User Name:</td>
+          <td width="220px"><input type="text" size="40" id="user_id" name="user_id"/></td> 
+        </tr>
+        <tr>
+          <td width="130px" align="right">Password:</td>
+          <td width="220px"><input type="password" size="40" id="password" name="password"/></td> 
+        </tr>
+        <tr>
+          <td width="130px"  align="right">Confirm Password:</td>
+          <td width="220px"><input type="password" size="40" id="password2" name="password2"/></td> 
+        </tr>
+      </table>
+      <div class="freezer_dialogueTitle">
+        There is no way to recover a forgotten password! <br/>
+        (Remember, there are no outside servers that store your data.) <br/>
+      </div> 
+
+      <div id="showAdvancedOptions" style="padding: 2px; max-width: 130px; font-size:12px; text-align: center; margin: 5px; background-color: #E2E2E2; border-radius: 5px; font-weight: normal; cursor: pointer;">Advanced Options</div>
+      <div id="advancedOptions" style="display:none">
+        <div class="freezer_app_page_title freezer_spacer">
+            External Database - <br/>
+            Please enter credentials if you want to use an external database
+        </div>     
+
+        <table>
+          <tr>
+            <td width="130px" align="right">Database User:</td>
+            <td width="220px"><input type="text" size="40" id="db_user" name="db_user" value="root"/></td> 
+          </tr>
+          <tr>
+            <td width="130px" align="right">Database Password:</td>
+            <td width="220px"><input type="password" size="40" id="db_pword" name="db_pword"/></td> 
+          </tr>
+          <tr>
+            <td width="130px"  align="right">Database host:</td>
+            <td width="220px"><input type="text" size="40" id="db_host" name="db_host"/></td> 
+          </tr>
+          <tr>
+            <td width="130px"  align="right">Database port:</td>
+            <td width="220px"><input type="text" size="40" id="db_port" name="db_port" value="27017"/></td> 
+          </tr>  
+          <tr>
+            <td width="130px"  align="right">Admin:</td>
+            <td width="220px"><input type="checkbox" name="db_addAuth" id="db_addAuth" checked>Use adminisrative authority?<br></td> 
+          </tr>
+          <tr>
+            <td width="130px"  align="right">Unified db name:</td>
+            <td width="220px">Enter name to use 1 db for all apps
+              <br>
+              <input type="text" size="40" id="db_unifiedDbName" name="db_unifiedDbName" value=""/>
+              <br/>
+            </td> 
+          </tr>          
+        </table>
+      </div>
+
+      <table>
+        <tr>
+          <td width="130px"  align="right"> &nbsp </td>
+          <td width="220px" align="center"><input class="freezer_dialogue_topTitle" type="submit" value=" &nbsp; Initialize Freezr &nbsp; "/></td> 
+        </tr>
+      </table>
+      
+
+    </form>
+  </div>
+</div>
+
+
+

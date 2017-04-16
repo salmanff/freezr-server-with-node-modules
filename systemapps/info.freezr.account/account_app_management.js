@@ -3,7 +3,6 @@
 var doShowDevoptions = false;
 var userHasIntiatedAcions = false;
 freezr.initPageScripts = function() {
-
   document.addEventListener('click', function (evt) {
     if (evt.target.id && freezr.utils.startsWith(evt.target.id,"button_")) {
       var parts = evt.target.id.split('_');
@@ -75,13 +74,11 @@ var buttons = {
       if (!theEl || confirm("This app exists. Do you want to replace it with the uplaoded files?")) {
         freezer_restricted.menu.resetDialogueBox(true);
           freezer_restricted.connect.send(url, uploadData, function(returndata) {
-            console.log("Go return data "+returndata)
             var d = JSON.parse(returndata);
-            var elId="freezer_dialogueInnerText"
             if (d.err) {
-              freezr.html.renderWithData("<br/>"+JSON.stringify(d.err),null,elId,null)
+              document.getElementById("freezer_dialogueInner").innerHTML = "<br/>"+JSON.stringify(d.err);
             } else{
-              freezr.html.getFileToRenderWithData('uploaderrors.html',d,elId,null,uploadSuccess);
+              ShowAppUploadErrors(d,uploadSuccess);
             }
           }, "PUT", null);
       }      
@@ -92,11 +89,10 @@ var buttons = {
     freezer_restricted.menu.resetDialogueBox();
     freezer_restricted.connect.ask('/account/v1/appMgmtActions.json', {'action':'updateApp', 'app_name':args[0]}, function(returndata) {
         var d = JSON.parse(returndata);
-        var elId="freezer_dialogueInner"
         if (d.err) {
-          freezr.html.renderWithData("<br/>"+JSON.stringify(d.err),null,elId,null,buttons.updateAppList)
-        } else{
-          freezr.html.getFileToRenderWithData('uploaderrors.html',d,elId,null,showDevOptions);
+          if (document.getElementById("freezer_dialogueInner")) document.getElementById("freezer_dialogueInner").innerHTML= "<br/>"+JSON.stringify(d.err);
+        } else {
+          ShowAppUploadErrors(d,showDevOptions)
         }
         buttons.updateAppList();
     })
@@ -111,13 +107,17 @@ var buttons = {
     }
   },
   'updateAppList': function() {
-      freezer_restricted.connect.read('/account/v1/app_list.json', null, function (returndata) {
-          var d = JSON.parse(returndata);
-          if (d.err) {
-            freezr.html.renderWithData("<br/>"+JSON.stringify(d.err),null,"app_list",null)
+      freezr.utils.getAllAppList (function (returndata) {
+          var theData = freezr.utils.parse(returndata);
+          var theEl = document.getElementById("app_list");
+          if(!theData) { 
+            theEl.innerHTML = "No Apps have been installed";
+          } else if (theData.err || theData.error) {
+            theEl.innerHTML = "ERROR RETRIEVING APP LIST";
           } else {
-            if(!d) d = null;
-            freezr.html.getFileToRenderWithData("app_mgmt_list.html",d,"app_list");
+            freezr.utils.getHtml("app_mgmt_list.html", function(theHtml) {
+              theEl.innerHTML = Mustache.to_html( theHtml,theData );
+            })
           }
       });
   },
@@ -128,6 +128,14 @@ var buttons = {
   }
 
 }
+var ShowAppUploadErrors = function (theData,callFwd) {
+  freezr.utils.getHtml("uploaderrors.html", function(theHtml) {
+    var theEl = document.getElementById("freezer_dialogueInner");
+    theEl.innerHTML = Mustache.to_html( theHtml,theData );
+    if (callFwd) callFwd();
+  })
+}
+
 var uploadSuccess = function() {
   buttons.updateAppList();
   //document.getElementById("freezer_dialogue_extra_title").innerHTML="Finalize Installation and Launch'."

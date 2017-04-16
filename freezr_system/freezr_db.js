@@ -5,9 +5,8 @@ var async = require('async'),
     bcrypt = require('bcryptjs'),
     db_main = require("./db_main.js"),
     helpers = require("./helpers.js"),
-    fs = require('fs');
+    file_handler = require('./file_handler.js');
 
-var MongoClient = require('mongodb').MongoClient;
 const ARBITRARY_COUNT = 200;
 
 // APP_DB's - pass through to main_db
@@ -22,6 +21,9 @@ exports.real_id = function(data_object_id,app_config,collection_name) {
         return db_main.get_real_object_id(data_object_id)
     }
 }
+exports.init_admin_db = function(callback) { db_main.init_admin_db(callback)} 
+exports.setTemporaryFreezrEnvDbParams = function(params, unifiedDbName) {return db_main.setTemporaryFreezrEnvDbParams(params, unifiedDbName)} 
+exports.resetFreezrEnvironment = function()  {db_main.resetFreezrEnvironment() }
 
 
 // DB calls
@@ -91,18 +93,14 @@ exports.add_user = function (valid_unique_user_id, password, valid_email, full_n
                 deleted: false
             };
             db_main.users.insert(write, { w: 1, safe: true }, cb);
-        },
-
-        // fetch and return the new user.
-        function (results, cb) {
-            cb(null, results[0]);
         }
     ],
-    function (err, user_json) {
+    function (err, results) {
+        //onsole.log("added user"+JSON.stringify(results))
         if (err) {
             callback(helpers.auth_failure("admin_handler.js",exports.version,"add_user","could not add user "+err));
         } else {
-            callback(null, user_json);
+            callback(null);
         }
     });
 };
@@ -140,11 +138,15 @@ exports.all_users = function (sort_field, sort_desc, skip, count, callback) {
     if (sort_field) {sort[sort_field] = sort_desc ? -1 : 1;}
     skip = skip? skip: 0;
     count = count? count:ARBITRARY_COUNT;
-    db_main.users.find(null)
-        .sort(sort)
-        .limit(count)
-        .skip(skip) 
-        .toArray(callback);
+    if (db_main && db_main.users) {
+        db_main.users.find(null)
+            .sort(sort)
+            .limit(count)
+            .skip(skip) 
+            .toArray(callback);
+    } else {
+        callback(helpers.internal_error("freezr_db", exports.version, "all_users", "users dtabase is unavailable" ))
+    }
 };
 
 // USER_DEVICES
@@ -179,9 +181,9 @@ exports.set_or_update_user_device_code = function (device_code, user_id,login_fo
     ], 
     function (err, results) {
         if (err) {
-            callback(err, null, callback);
+            callback(err, null);
         } else {
-            callback(null, {'device_code':device_code, 'login_for_app_name':login_for_app_name}, callback);
+            callback(null, {'device_code':device_code, 'login_for_app_name':login_for_app_name});
         }  
     });
 }
@@ -259,7 +261,6 @@ exports.remove_user_app = function (user_id, app_name, callback){
 }
 exports.get_or_set_user_app_code = function (user_id,app_name, callback){
     var app_code = null, new_app_code=null;
-    //onsole.log("START get_or_set_user_app_code "+user_id+" ap "+app_name);
     async.waterfall([
         // 1. Get App Code 
         function (cb) {
@@ -304,8 +305,11 @@ exports.get_or_set_user_app_code = function (user_id,app_name, callback){
             callback(err, null, callback);
         } else if (app_code) {
             callback(null, {'app_code':app_code, 'newCode':(new_app_code?true:false)}, callback);
-        } else if (results && results[0] && results[0].app_code) {
+        } else if (results && results[0] && results[0].app_code) { // old mongo
             app_code = results[0].app_code
+            callback(null, {'app_code':app_code, 'newCode':(new_app_code?true:false)}, callback);        
+        } else if (results && results.ops && results.ops[0] && results.ops[0].app_code) {
+            app_code = results.ops[0].app_code;
             callback(null, {'app_code':app_code, 'newCode':(new_app_code?true:false)}, callback);        
         } else  {
             callback(helpers.internal_error("freezr_db", exports.version, "get_or_set_user_app_code", "Unknown Error Getting App code"), null, callback)
@@ -436,7 +440,7 @@ exports.add_app = function (app_name, app_display_name, user_id, callback) {
             db_main.installed_app_list.insert(write, { w: 1, safe: true }, cb);
         },
 
-        // todo: Add permissions for app . who is allowed to use it etc
+        // todo later: Add permissions for app. who is allowed to use it etc?
 
         // fetch and return the new app.
         function (results, cb) {
@@ -477,19 +481,8 @@ exports.all_user_apps = function (user_id, sort_field, sort_desc, skip, count, c
             .toArray(callback);
     }
 };
-exports.getAllCollectionNames = function (app_name, callback) {
-    db_main.getAllCollectionNames(app_name, function(err, names) {
-        console.log("Got name in freezr_db "+JSON.stringify(names))
-        var a_name, collection_names=[];
-        if (names && names.length > 0) {
-            names.forEach(function(name_obj) {
-                a_name = name_obj.name; // .split(".")[1];
-                if (a_name && a_name!="system") collection_names.push(a_name)
-            });
-        }
-        callback(null, collection_names);
-    })
-};
+exports.getAllCollectionNames = db_main.getAllCollectionNames;
+
 exports.remove_user_records = function (user_id, app_name, callback) {
     var appDb, collection_names = [], other_data_exists = false;
 
@@ -504,7 +497,7 @@ exports.remove_user_records = function (user_id, app_name, callback) {
             var a_name;
             if (names && names.length > 0) {
                 names.forEach(function(name_obj) {
-                    a_name = name_obj.name.split(".")[1];
+                    a_name = (name_obj && name_obj.name)? name_obj.name.split(".")[1]:null;
                     if (a_name && a_name!="system") collection_names.push(a_name)
                 });
                 if (collection_names && collection_names.length>0) {
@@ -584,16 +577,11 @@ exports.try_to_delete_app = function (user_id, app_name, callback) {
 
         // remove app directory
         function (results, cb) {
-            var path = 'app_files/'+app_name;
-            if (!other_data_exists && fs.existsSync(path)) {
-                deleteFolderAndContents(path, function(err) {
-                    // ignores err of removing directories - todo shouldflag
-                    cb(null)
-                });
+            if (!other_data_exists && file_handler.appFileExists(app_name)) {
+                file_handler.deleteAppFolderAndContents(app_name, cb);
             } else {
-                cb(null);
-            } 
-            
+                cb(null, null);
+            }
         },
 
         function (cb) {
@@ -635,40 +623,6 @@ exports.get_app_info_from_db = function (app_name, callback) {
         callback(null, obj_returned);
     });
 }
-exports.appUserFiles_exist = function (app_name, user_id, callback) {
-    var path = 'userdata/'+app_name+'/'+user_id
-    fs.readdir(path, function (return_list){
-        callback( (return_list && return_list.length>0)? return_list.length: 0 );
-    })
-}
-function deleteFolderAndContents(location, next) {
-    // http://stackoverflow.com/questions/18052762/in-node-js-how-to-remove-the-directory-which-is-not-empty
-    fs.readdir(location, function (err, files) {
-        async.forEach(files, function (file, cb) {
-            file = location + '/' + file
-            fs.stat(file, function (err, stat) {
-                if (err) {
-                    return cb(err);
-                }
-                if (stat.isDirectory()) {
-                    deleteFolderAndContents(file, cb);
-                } else {
-                    fs.unlink(file, function (err) {
-                        if (err) {
-                            return cb(err);
-                        }
-                        return cb();
-                    })
-                }
-            })
-        }, function (err) {
-            if (err) return next(err)
-            fs.rmdir(location, function (err) {
-                return next(err)
-            })
-        })
-    })
-}
 
 
 // PERMISSIONS
@@ -700,7 +654,7 @@ exports.create_query_permission_record = function (user_id, requestor_app, reque
         //write.allowed_user_ids = permission_object.allowed_user_ids? permission_object.allowed_user_ids: null;
         write.return_fields = permission_object.return_fields? permission_object.return_fields: null;
         write.anonymously = permission_object.anonymously? permission_object.anonymously: false;
-        write.sort_fields = permission_object.sort_fields? permission_object.sort_fields: null; // todo -  only 1 sort field can work at this point - to add more...
+        write.sort_fields = permission_object.sort_fields? permission_object.sort_fields: null; // todo later -  only 1 sort field can work at this point - to add more...
         write.max_count = permission_object.count? permission_object.count: null;
     } else if (write.type == "field_delegate") {
         write.sharable_fields = permission_object.sharable_fields? permission_object.sharable_fields : [];
@@ -781,7 +735,24 @@ exports.requestee_userAppPermissions = function (user_id, app_name, callback) {
 }
 exports.permission_by_creator_and_permissionName = function (user_id, requestor_app, requestee_app, permission_name, callback) {
     //onsole.log("getting perms for "+user_id+" "+requestor_app+" "+requestee_app+" "+ permission_name)
-    var dbQuery = {'$and': [{"_creator":user_id}, {'requestee_app':requestee_app}, {'requestor_app':requestor_app}, {'permission_name':permission_name}]};
+    if (!user_id) {
+        callback(helpers.missing_data("cannot get permission without user_id", "freezr_db", exports.version,"permission_by_creator_and_permissionName"));
+    } else if (!requestor_app) {
+        callback(helpers.missing_data("cannot get permission without requestor_app", "freezr_db", exports.version,"permission_by_creator_and_permissionName"));
+    } else if (!requestee_app) {
+        callback(helpers.missing_data("cannot get permission without requestee_app", "freezr_db", exports.version,"permission_by_creator_and_permissionName"));
+    } else if (!permission_name) {
+        callback(helpers.missing_data("cannot get permission without permission_name", "freezr_db", exports.version,"permission_by_creator_and_permissionName"));
+    } else {
+        var dbQuery = {'$and': [{"_creator":user_id}, {'requestee_app':requestee_app}, {'requestor_app':requestor_app}, {'permission_name':permission_name}]};
+        db_main.permissions.find(dbQuery)
+            .skip(0)
+            .toArray(callback);
+    }
+}
+exports.permission_by_creator_and_objectId = function (user_id, requestee_app, collection_name, data_object_id, callback) {
+    //onsole.log("getting perms for "+user_id+" "+requestor_app+" "+requestee_app+" "+ permission_name)
+    var dbQuery = {'$and': [{"_creator":user_id}, {'requestee_app':requestee_app}, {'collection_name':collection_name}, {'data_object_id':data_object_id}]};
     db_main.permissions.find(dbQuery)
         .skip(0)
         .toArray(callback);
@@ -862,7 +833,7 @@ exports.field_requested_is_permitted = function(permission_model,requested_field
         if (!permission_model.sharable_folders || permission_model.sharable_folders.length==0 || permission_model.sharable_folders.indexOf('/') >=0 ) {
             return true;
         } else {
-            return helpers.folder_is_in_list_or_its_subfolders(requested_field_value, permission_model.sharable_folders);
+            return file_handler.folder_is_in_list_or_its_subfolders(requested_field_value, permission_model.sharable_folders);
         }
     } else { // should not be here.
         return false;
@@ -1095,7 +1066,4 @@ var getQueryParams = function(jsonQuery) {
     }  
     return tempret
 }
-
-
-
 

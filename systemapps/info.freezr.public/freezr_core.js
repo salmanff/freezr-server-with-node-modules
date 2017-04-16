@@ -54,7 +54,7 @@ freezr.db.update = function(data, callback, collection) {
 };
 freezr.db.upload = function(file, callback, data, options) {
   // upload a file and record it in the database
-  // options can be: updateRecord, data_object_id
+  // options can be: updateRecord
   // and file specific ones: targetFolder, fileName, fileOverWrite
   // for files uploaded, colelction is always "files"§
 
@@ -75,7 +75,7 @@ freezr.db.getById = function(data_object_id, callback, collection_name, permissi
   if (!collection_name) collection_name = "main";
   if(!permission_name) permission_name="me";
   var url = '/v1/db/getbyid/'+permission_name+"/"+collection_name+"/"+freezr_app_name+'/'+freezr_app_code+'/'+requestee_app+'/'+data_object_id;
-
+  //onsole.log("getting url ",url)
   freezer_restricted.connect.read(url, options, callback);
 }
 freezr.db.getByPublicId = function(data_object_id, callback) {
@@ -132,6 +132,7 @@ freezr.perms.getAllAppPermissions = function(callback) {
   freezer_restricted.connect.read(url, null, callback);
 }
 freezr.perms.setFieldAccess = function(callback, permission_name, options) {
+  // todo - Currently not functional
   // can give specific people access to fields with specific values - eg myHusband can be given to all "album" fields whose value is "ourVacationAlbum2014"
   // field name and value are needed for field_delegate type permissions but unnecessary for foler_delegate permissions
   // permission_name is the permission_name under which the field is being  
@@ -167,68 +168,68 @@ freezr.perms.setObjectAccess = function(callback, permission_name, data_object_i
   freezer_restricted.connect.write(url, options, callback);
 }
 freezr.perms.listOfFieldsIvegrantedAccessTo = function(callback, options) {
+  // todo - Currently not functional
   // returns list of folders (or field names) the app has given access to on my behalf.
   // options: permission_name, collection, field_name, field_value, shared_with_group, shared_with_user, granted
   var url = '/v1/permissions/getfieldperms/ihavegranted/'+freezr_app_name+'/'+freezr_app_code+'/';
   freezer_restricted.connect.read(url, options, callback);
 }
 freezr.perms.allFieldsIHaveAccessTo = function(callback, options ) {
+  // todo - Currently not functional
   // returns list of folders (or field names) user has been given access to (excluding subfolders) by other users
-  // options: permission_name, collection, field_name, granted,  _creator, 
+  // options: permission_name, collection, requestee_app, action,  _creator, 
   // target_app???
   var url = '/v1/permissions/getfieldperms/ihaveccessto/'+freezr_app_name+'/'+freezr_app_code+'/';
   freezer_restricted.connect.read(url, options, callback);
 }
 
-// html functions  - functions to render pages
-freezr.html.getFileToRenderWithData = function (html_page,data,targetElId, processdata, next){
-  // retrieves an html snippet and renders it using the data in a target element
-  var html_url;
-  if (targetElId == "BODY") {
-    html_url = html_page;
-  } else {
-    html_url = '/htmlsnippet/'+freezr_app_name+"/"+html_page;
-  }
-  //onsole.log("getting getFileToRenderWithData"+html_url);
-  freezer_restricted.connect.read(html_url, null, function(theHtml){
-        freezr.html.renderWithData(theHtml, data, targetElId, processdata, next);
-      });
-}
-freezr.html.renderWithData = function(theHtml,theData,elId,processdata,next){
-  // renders html snippet merged with data within an element
-  //onsole.log("got html " + ((theHtml && theHtml.length>50)? theHtml.slice(0,50)+"..." : "NONE"));
-  //onsole.log("got el "+elId);
-  var theEl;
-  if (elId == "BODY") {
-    theEl = document.getElementsByTagName("BODY")[0];
-  } else {
-    theEl = document.getElementById(elId);
-  }
-  if (theEl) {
-      if (theData && theData.error) console.log("Error getting data");
-      if (!theData ) {theData = {'results':[]} ;}
-      if (processdata) theData = processdata(theData);
-      var renderedPage = Mustache.to_html( theHtml,theData );
-      theEl.innerHTML = renderedPage;
-    
-    if (elId == "BODY") {
-      freezer_restricted.menu.addFreezerDialogueElements();
-      if (freezr.initPageScripts) freezr.initPageScripts();
-      if (freezr_messages && freezr_messages.showOnStart) {freezer_restricted.menu.resetDialogueBox(); freezr.perms.getAllAppPermissions(freezer_restricted.menu.show_permissions)};
-    }
 
-    if (next) next();
+// UTILITY Functions
+freezr.utils.ping = function(callback, app_name) {
+  // pings freezr to get back logged in data
+  var url = '/v1/account/ping';
+  if (app_name) url+="/"+app_name;
+  freezer_restricted.connect.read(url, null, callback);
+}
+freezr.utils.logout = function() {
+  if (freezr.app.isWebBased) {
+    console.log("Warning: On web based apps, logout from freezr home.")
+    if (freezr.app.logoutCallback) freezr.app.logoutCallback({logged_out:false});
   } else {
-    console.log("ERROR - NO SUCH ELEMENT "+elId)
+    freezer_restricted.connect.ask("/v1/account/applogout", null, function(resp) {
+      resp = freezr.utils.parse(resp);
+      freezer_restricted.menu.close()
+      if (resp.error) {
+        console.log("ERROR Logging Out");
+      } else { 
+        freezr_app_code = null;
+        freezr_user_id = null;
+        freezr_server_address= null;
+        freezr_user_is_admin = false;
+        if (freezr.app.logoutCallback) freezr.app.logoutCallback(resp);
+      }     
+    });
   }
 }
-freezr.html.filePathFromName = function(fileName, user_id, permission_name, requestee_app) {
+freezr.utils.getHtml = function(part_path, callback, app_name) {
+  if (!app_name) app_name = freezr_app_name;
+  if (!part_path.endsWith(".html") && !part_path.endsWith(".htm")) {
+    callback("error - can only get html files")
+  } else {
+    var html_url = '/app_files/'+app_name+"/"+part_path;
+    freezer_restricted.connect.read(html_url, null, callback);
+  }
+}
+freezr.utils.getAllAppList = function(callback) {
+  freezer_restricted.connect.read('/account/v1/app_list.json', null, callback)
+}
+freezr.utils.filePathFromName = function(fileName, user_id, permission_name, requestee_app) {
   // returns the full file path based on the name of a file so it can be referred to in html. (fileName can include subfolders in user directory)
   if (!user_id) user_id = freezr_user_id;
   if (! fileName ) return null
-  else return freezr.html.filePathFromId(user_id +"/"+fileName,requestee_app,permission_name) 
+  else return freezr.utils.filePathFromId(user_id +"/"+fileName,requestee_app,permission_name) 
 }
-freezr.html.filePathFromId = function(fileId, permission_name, requestee_app) {
+freezr.utils.filePathFromId = function(fileId, permission_name, requestee_app) {
   // returns the full file path based on the file id so it can be referred to in html.
   if(!permission_name) permission_name="me";
   if(!requestee_app) requestee_app=freezr_app_name;
@@ -236,70 +237,38 @@ freezr.html.filePathFromId = function(fileId, permission_name, requestee_app) {
   //onsole.log("geeting "+unescape(fileId));
   return "/v1/userfiles/"+permission_name+"/files/"+freezr_app_name+"/"+ freezr_app_code +"/"+requestee_app+"/"+fileId;
 }
-
-
-// UTILITY Functions
-  freezr.utils.parse = function(dataString) {
-    if (typeof dataString == "string") {
-      try {
-            dataString=JSON.parse(dataString);
-      } catch(err) {
-        dataString= {'data':dataString}
-      }
-    }
-    return dataString
-  }
-  freezr.utils.startsWith = function(longertext, checktext) {
-      if (!checktext || !longertext) {return false} else 
-      if (checktext.length > longertext.length) {return false} else {
-      return (checktext == longertext.slice(0,checktext.length));}
-  }
-  freezr.utils.longDateFormat = function(aDateNum) {
-    if (!aDateNum || aDateNum+''=='0') {
-      return 'n/a';
-    } else {
-      try {
-        aDate = new Date(aDateNum);
-        var retVal = aDate.toLocaleDateString() + ' '+ aDate.toLocaleTimeString(); 
-        return  retVal.substr(0,retVal.length-3);
-      } catch (err) {
-        return 'n/a - error';
-      }
+freezr.utils.parse = function(dataString) {
+  if (typeof dataString == "string") {
+    try {
+          dataString=JSON.parse(dataString);
+    } catch(err) {
+      dataString= {'data':dataString}
     }
   }
-  freezr.utils.testCallBack = function(returnJson) {
-    returnJson = freezer_restricted.utils.parse(returnJson);
-    //onsole.log("return json is "+JSON.stringify(returnJson));
-  }
-  freezr.utils.ping = function(callback, app_name) {
-    // pings freezr to get back logged in data
-    var url = '/v1/account/ping';
-    if (app_name) url+="/"+app_name;
-    freezer_restricted.connect.read(url, null, callback);
-  }
-  freezr.utils.logout = function() {
-    if (freezr.app.isWebBased) {
-      console.log("Warning: On web based apps, logout from freezr home.")
-      if (freezr.app.logoutCallback) freezr.app.logoutCallback({logged_out:false});
-    } else {
-      freezer_restricted.connect.ask("/v1/account/applogout", null, function(resp) {
-        resp = freezr.utils.parse(resp);
-        freezer_restricted.menu.close()
-        if (resp.error) {
-          console.log("ERROR Logging Out");
-        } else { 
-          freezr_app_code = null;
-          freezr_user_id = null;
-          freezr_server_address= null;
-          freezr_user_is_admin = false;
-          if (freezr.app.logoutCallback) freezr.app.logoutCallback(resp);
-        }     
-      });
+  return dataString
+}
+freezr.utils.startsWith = function(longertext, checktext) {
+    if (!checktext || !longertext) {return false} else 
+    if (checktext.length > longertext.length) {return false} else {
+    return (checktext == longertext.slice(0,checktext.length));}
+}
+freezr.utils.longDateFormat = function(aDateNum) {
+  if (!aDateNum || aDateNum+''=='0') {
+    return 'n/a';
+  } else {
+    try {
+      aDate = new Date(aDateNum);
+      var retVal = aDate.toLocaleDateString() + ' '+ aDate.toLocaleTimeString(); 
+      return  retVal.substr(0,retVal.length-3);
+    } catch (err) {
+      return 'n/a - error';
     }
   }
-  freezr.utils.closeMenuOnEscape = function (evt){
-    if (evt.keyCode == 27 && document.getElementById("freezer_dialogueOuter").style.display == "block") {freezer_restricted.menu.close()};
-  }
+}
+freezr.utils.testCallBack = function(returnJson) {
+  returnJson = freezer_restricted.utils.parse(returnJson);
+  //onsole.log("return json is "+JSON.stringify(returnJson));
+}
 
 /*  ==================================================================
 
@@ -309,13 +278,10 @@ They are for internal purposes only
 
 ==================================================================    */ 
 
-
 freezer_restricted.utils = freezr.utils;
 freezer_restricted.connect= {};
 freezer_restricted.menu = {};
 freezer_restricted.permissions= {};
-
-
 
 // CONNECT - BASE FUNCTIONS TO CONNECT TO SERVER
   freezer_restricted.connect.ask = function(url, data, callback, type) {
@@ -424,9 +390,26 @@ freezer_restricted.permissions= {};
     returnJson = freezer_restricted.utils.parse(returnJson);
     var theButt = (returnJson && returnJson.buttonId)? document.getElementById(returnJson.buttonId) : null;
     if (theButt) {
-      //onsole.log("got the butt - now "+returnJson.action)
-      if (returnJson.action == "Accept") { theButt.innerHTML = "Now Accepted"}
-      if (returnJson.action == "Deny") {theButt.innerHTML = "Now Denied";}
+      if (returnJson.success) { 
+        if (returnJson.action == "Accept") { 
+          theButt.innerHTML = "Now Accepted"
+        } else if (returnJson.action == "Deny") {
+          theButt.innerHTML = "Now Denied";
+          if ((returnJson.flags && returnJson.flags.major_warnings && returnJson.flags.major_warnings.length>0) || returnJson.aborted)  {
+            theButt.nextSibling.style.color = "red";
+            theButt.nextSibling.innerHTML = "Note: There were some SERIOUS errors removing permissions from data already marked as permitted. "
+          } else if (returnJson.flags && returnJson.flags.minor_warnings_data_object && returnJson.flags.minor_warnings_data_object.length>0) {
+            theButt.nextSibling.style.color = "red";
+            theButt.nextSibling.innerHTML = "There were some data inconsistencies found when removing permissions from data already marked as permitted. "
+          }
+        }
+      } else {
+        theButt.innerHTML = "Error";
+        theButt.nextSibling.innerHTML = "There was an error changing this permission - please try again later"
+      }
+    } else {
+      var mainEl = document.getElementById("freezer_dialogueInnerText");
+      if (mainEl) mainEl.innerHTML = "Error communicating with server. <br/>"+((returnJson && returnJson.error)? returnJson.error : "")
     }
   }
 
@@ -510,14 +493,14 @@ freezer_restricted.permissions= {};
 
   }
   freezer_restricted.menu.resetDialogueBox = function(isAdminPage) {
-    document.getElementById('freezer_dialogueInnerText').innerHTML= '<br/><div align="center">.<img src="'+(freezr.app.isWebBased? "/app_files/info.freezr.public/static/ajaxloaderBig.gif": "./freezrPublic/static/ajaxloaderBig.gif")+'"/></div>';
+    if (document.getElementById('freezer_dialogueInnerText')) document.getElementById('freezer_dialogueInnerText').innerHTML= '<br/><div align="center">.<img src="'+(freezr.app.isWebBased? "/app_files/info.freezr.public/static/ajaxloaderBig.gif": "./freezrPublic/static/ajaxloaderBig.gif")+'"/></div>';
     var dialogueEl = document.getElementById('freezer_dialogueOuter');
-    dialogueEl.style.display="block";
+    if (dialogueEl) dialogueEl.style.display="block";
     var bodyEl = document.getElementsByTagName("BODY")[0]
-    bodyEl.style.overflow="hidden";
-    dialogueEl.style.top = Math.round(bodyEl.scrollTop)+"px";
+    if (bodyEl) bodyEl.style.overflow="hidden";
+    if (dialogueEl && bodyEl) dialogueEl.style.top = Math.round(bodyEl.scrollTop)+"px";
     if (isAdminPage && document.getElementById("freezer_dialogue_viewDataButt")) document.getElementById("freezer_dialogue_viewDataButt").style.display= "none";
-    document.getElementById('freezer_dialogueInner').style["-webkit-transform"] = "translate3d(0, 0, 0)";
+    if (document.getElementById('freezer_dialogueInner')) document.getElementById('freezer_dialogueInner').style["-webkit-transform"] = "translate3d(0, 0, 0)";
   }
   freezer_restricted.menu.addLoginInfoToDialogue = function(aDivName) {
     var innerElText = document.getElementById(aDivName);
@@ -613,9 +596,6 @@ freezer_restricted.permissions= {};
       if (evt.keyCode == 13) {evt.preventDefault(); document.getElementById("freezr_server_login_butt").click();};
     }
   }
-
-
-
 
   freezer_restricted.menu.show_permissions = function(returnPermissions) {
     if (document.getElementById("freezer_dialogue_viewDataButt")) document.getElementById("freezer_dialogue_viewDataButt").style.left=(parseInt(window.innerWidth/2)-30)+"px";
@@ -761,8 +741,11 @@ freezer_restricted.permissions= {};
     }
   }
 
+  document.onkeydown= function (evt) {
+      if (evt.keyCode == 27 && document.getElementById("freezer_dialogueOuter") && document.getElementById("freezer_dialogueOuter").style.display == "block") {freezer_restricted.menu.close()};
+  }
 
 freezr.utils.addFreezerDialogueElements = freezer_restricted.menu.addFreezerDialogueElements;
-freezr.html.freezrMenuOpen = freezer_restricted.menu.freezrMenuOpen;
-freezr.html.freezrMenuClose = freezer_restricted.menu.close;
+freezr.utils.freezrMenuOpen = freezer_restricted.menu.freezrMenuOpen;
+freezr.utils.freezrMenuClose = freezer_restricted.menu.close;
 

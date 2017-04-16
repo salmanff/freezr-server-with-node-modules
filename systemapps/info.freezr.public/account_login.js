@@ -15,6 +15,9 @@ freezr.initPageScripts = function() {
 		  freezer_restricted.connect.ask("/v1/account/login", theInfo, gotLoginStatus);
 	  }
 	}
+	try {
+		 if (warnings && warnings=="setupfile-resave") showError("There has been a potentially serious error as a key file is missing from your system. If you are a developer, and you have deleted, that's okay. Other wise, this may be a more serious problem.")
+		} catch(e) {}
 	document.getElementById("freezr_server").innerHTML = window.location.href.slice(0,window.location.href.indexOf("/account"))
 	if (login_for_app_name && document.getElementById("freezr_app_name") ) document.getElementById("freezr_app_name").innerHTML = login_for_app_name;
 

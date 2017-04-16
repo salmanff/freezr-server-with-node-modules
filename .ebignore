@@ -5,3 +5,4 @@ freezr_environment.js
 freezr_preferences.js
 userapps/*
 userfiles/*
+mongoFiles/*

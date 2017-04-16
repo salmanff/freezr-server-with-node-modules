@@ -226,10 +226,41 @@ var processNextFile = function() {
 	}
 }
 var transformRecord = null; 
+var existingPurls = [];
+transformRecord =  function(aRecord) {
+	if (!aRecord) return null;
+	if (!aRecord.url) return null
+	if (aRecord.fj_deleted) return null
+	var corePath = function(aUrl) {
+	  if (aUrl.indexOf('?')>0) aUrl = aUrl.slice(0,aUrl.indexOf('?'));
+	  if (aUrl.indexOf('#')>0) aUrl = aUrl.slice(0,aUrl.indexOf('#'));
+	  //if (aUrl.indexOf('http://')== 0){ aUrl=aUrl.slice(7)} else if (aUrl.indexOf('https://')== 0) {aUrl=aUrl.slice(8)}
+	  if (aUrl.slice(-1)=="/") {aUrl = aUrl.slice(0,-1);}
+	  return aUrl.trim();
+	}
+	var endsWith = function (longWord, portion) {
+		return (longWord.indexOf(portion)>=0 && longWord.indexOf(portion) == (longWord.length - portion.length) )
+	}
+	var removeEnd = function (longWord,portion) {
+		if (endsWith(longWord,portion)) {return (longWord.slice(0,-portion.length));} else {return longWord;}
+	}
+	if (aRecord.url)  {
+		aRecord.purl = corePath(aRecord.url)
+	};
+	if (aRecord.path) {delete aRecord.path}
 
+	if (dl.meta.app_config.collections && 
+		dl.meta.app_config.collections[uploader.file_content.collections[uploader.current_collection_num].name] && 
+		dl.meta.app_config.collections[uploader.file_content.collections[uploader.current_collection_num].name].make_data_id ) {
+	} else {
+		delete aRecord._id;
+	}
+	return aRecord;	
+};
 var askToProcessNextRecord = function() {
 	//onsole.log("dealing with rec"+uploader.current_record)
 	var noMoreCollections = false
+
 	while (!noMoreCollections && ++uploader.current_record >= uploader.file_content.collections[uploader.current_collection_num].data.length) {
 		if (++uploader.current_collection_num >= uploader.file_content.collections.length) noMoreCollections=true;
 		uploader.current_record=0;
@@ -248,7 +279,7 @@ var askToProcessNextRecord = function() {
 		} else if (!thisRecord) {
 			document.getElementById("err_nums").innerHTML= "Errors uploading in total of "+(++uploader.records_erred)+" records."
 			addStatus("Error geting record - Missign data in record.<br/>")
-					console.log("err - missing data ", thisRecord )
+					console.log("err - missing data rec ", thisRecord, "curr rec:", uploader.current_record, "coll num:",uploader.current_collection_num, " len ",uploader.file_content.collections[uploader.current_collection_num].data.length )
 			askToProcessNextRecord();
 		} else {
 			document.getElementById("check_record").style.display="block";

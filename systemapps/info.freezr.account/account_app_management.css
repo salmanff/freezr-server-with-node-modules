@@ -66,6 +66,7 @@ body{
 .choose_file_outer{
 	size:12px;
 	overflow:hidden;
+	padding-left: 5px;
 }
 .choose_file_inner {
 	margin-left:-71px;

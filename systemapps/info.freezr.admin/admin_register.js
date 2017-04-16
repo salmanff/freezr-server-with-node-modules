@@ -8,18 +8,21 @@ freezr.initPageScripts = function() {
 
     if (!user_id || !password) {
       showError("You need a name and password to log in");
+    } else if (user_id.indexOf("_")>-1 || user_id.indexOf(" ")>-1 || user_id.indexOf("/")>-1) {
+      showError("user id's cannot have '/' or '_' or spaces in them");
     } else if (!password2 || password != password2) {
       showError("Passwords have to match");
     } else {
-      var theInfo = { register_type: "setUp",
-                      isAdmin: "true",
+      var theInfo = { register_type: "normal",
+                      isAdmin: document.getElementById("isAdminId").checked?"true":"false",
+                      email_address: document.getElementById("email_address").value,
                       user_id: user_id,
+                      full_name: document.getElementById("full_name").value,
                       password: password 
                     };
-      freezer_restricted.connect.write("/v1/admin/first_registration", theInfo, gotRegisterStatus, "jsonString");
+      freezer_restricted.connect.write("/v1/admin/user_register", theInfo, gotRegisterStatus, "jsonString");
     }
   }
-
 }
 
 var gotRegisterStatus = function(data) {
@@ -30,22 +33,14 @@ var gotRegisterStatus = function(data) {
   } else if (data.error) {
     showError("Error. "+data.message);
   } else {
-    window.location = "/admin/registration_success";
+    window.location = "/admin/list_users";
   }
 }
-var randomText = function(textlen) {
-    // stackoverflow.com/questions/1349404/generate-a-string-of-5-random-characters-in-javascript
-    var text = "";
-    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
-    for( var i=0; i < textlen; i++ )
-        text += possible.charAt(Math.floor(Math.random() * possible.length));
-
-    return text;
-}
 var showError = function(errorText) {
   var errorBox=document.getElementById("errorBox");
   errorBox.innerHTML= errorText;
+  window.scrollTo(0,0);
 }
 
 
