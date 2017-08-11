@@ -12,7 +12,6 @@ freezr.initPageScripts = function() {
     }
   });
 
-  buttons.updateAppList();
   if (!freezr_user_is_admin) {document.getElementById("button_showDevOptions").style.display="none";}
   if (!freezr_user_is_admin) {document.getElementById("freezer_users_butt").style.display="none";}
   if (freezr_user_is_admin && window.location.search.indexOf("dev=true")>0) doShowDevoptions = true;
@@ -30,7 +29,10 @@ var showDevOptions = function(){
 }
 
 freezr.onFreezrMenuClose = function(hasChanged) {
-  if (userHasIntiatedAcions) buttons.updateAppList();;
+  //freezer_restricted.menu.resetDialogueBox(true);
+  if (userHasIntiatedAcions) buttons.updateAppList();
+    console.log("resetDialogueBox 3")
+  setTimeout(function() {freezer_restricted.menu.resetDialogueBox(true);},300);
 }
 var buttons = {
   'showDevOptions': function(args) {
@@ -76,7 +78,7 @@ var buttons = {
           freezer_restricted.connect.send(url, uploadData, function(returndata) {
             var d = JSON.parse(returndata);
             if (d.err) {
-              document.getElementById("freezer_dialogueInner").innerHTML = "<br/>"+JSON.stringify(d.err);
+              document.getElementById("freezer_dialogueInnerText").innerHTML = "<br/>"+JSON.stringify(d.err);
             } else{
               ShowAppUploadErrors(d,uploadSuccess);
             }
@@ -86,11 +88,16 @@ var buttons = {
   },
   'updateApp': function(args) {
     userHasIntiatedAcions = true;
-    freezer_restricted.menu.resetDialogueBox();
+    freezer_restricted.menu.resetDialogueBox(true);
+    document.getElementById("freezer_dialogue_closeButt").style.display="none";
+    document.getElementById("freezer_dialogue_homeButt").style.display="none";
+    document.getElementById("freezer_dialogueScreen").onclick=null;
     freezer_restricted.connect.ask('/account/v1/appMgmtActions.json', {'action':'updateApp', 'app_name':args[0]}, function(returndata) {
         var d = JSON.parse(returndata);
+        document.getElementById("freezer_dialogue_closeButt").style.display="block";
+        document.getElementById("freezer_dialogue_homeButt").style.display="block";
         if (d.err) {
-          if (document.getElementById("freezer_dialogueInner")) document.getElementById("freezer_dialogueInner").innerHTML= "<br/>"+JSON.stringify(d.err);
+          if (document.getElementById("freezer_dialogueInnerText")) document.getElementById("freezer_dialogueInnerText").innerHTML= "<br/>"+JSON.stringify(d.err);
         } else {
           ShowAppUploadErrors(d,showDevOptions)
         }
@@ -117,6 +124,14 @@ var buttons = {
           } else {
             freezr.utils.getHtml("app_mgmt_list.html", function(theHtml) {
               theEl.innerHTML = Mustache.to_html( theHtml,theData );
+              var imglist = document.getElementsByClassName("logo_img");
+              var imglistener = function(evt){
+                    this.src="/app_files/info.freezr.public/static/freezer_logo_empty.png"
+                    this.removeEventListener("error",imglistener);
+                }
+              for (var i=0; i<imglist.length; i++) {
+                  imglist[i].addEventListener("error", imglistener )
+              }
             })
           }
       });
@@ -125,12 +140,18 @@ var buttons = {
     // document.getElementById('buttons_uploadZipFileApp').style.display="block";
     document.getElementById('app_zipfile2').click();
     document.getElementById('button_uploadZipFileApp').style.display  ="block";
+  },
+  'closeMenu':function() {
+    freezr.utils.freezrMenuClose();
+    console.log("closed from closemeni")
+    //setTimeout(function() {freezer_restricted.menu.resetDialogueBox(true);},300);
+
   }
 
 }
 var ShowAppUploadErrors = function (theData,callFwd) {
   freezr.utils.getHtml("uploaderrors.html", function(theHtml) {
-    var theEl = document.getElementById("freezer_dialogueInner");
+    var theEl = document.getElementById("freezer_dialogueInnerText");
     theEl.innerHTML = Mustache.to_html( theHtml,theData );
     if (callFwd) callFwd();
   })

@@ -6,37 +6,29 @@ var async = require('async'),
     MongoClient = require('mongodb').MongoClient,
     file_handler = require('./file_handler.js');
 var autoCloseTimeOut;
-var freezr_environment = file_handler.existsSyncSystemAppFile(file_handler.systemPathTo("freezr_environment.js"))? require(file_handler.systemPathTo("freezr_environment.js")):null;
-var custom_environment = file_handler.existsSyncSystemAppFile(file_handler.systemPathTo("custom_environment.js"))? require(file_handler.systemPathTo("custom_environment.js")):null;
+var freezr_environment = file_handler.existsSyncLocalSystemAppFile(file_handler.systemPathTo("freezr_environment.js"))? require(file_handler.systemPathTo("freezr_environment.js")):null;
+var custom_environment = file_handler.existsSyncLocalSystemAppFile(file_handler.systemPathTo("custom_environment.js"))? require(file_handler.systemPathTo("custom_environment.js")):null;
 
 var unifiedDb;
 
-exports.dbConnectionString = function(appName) {
-    if (!freezr_environment){
-        var environment_defaults = require('./environment_defaults.js')
-        freezr_environment = environment_defaults.autoConfigs();
-    } 
-    if (freezr_environment && freezr_environment.params && freezr_environment.params.dbParams && freezr_environment.params.dbParams.host && freezr_environment.params.dbParams.host=="localhost"  ) { 
-        return 'localhost:27017/'+(freezr_environment.params.unifiedDbName? freezr_environment.params.unifiedDbName: appName);
-    } else if (freezr_environment && freezr_environment.params && freezr_environment.params.dbParams) {
-      return freezr_environment.params.dbParams.user + ":"+freezr_environment.params.dbParams.pass + "@"+freezr_environment.params.dbParams.host + ":"+freezr_environment.params.dbParams.port + "/"+ (freezr_environment.params.unifiedDbName? freezr_environment.params.unifiedDbName: appName) +(freezr_environment.params.dbParams.addAuth? '?authSource=admin':'');
+exports.dbConnectionString = function(appName) { 
+    if (freezr_environment && freezr_environment.dbParams && freezr_environment.dbParams.host && freezr_environment.dbParams.host=="localhost"  ) { 
+        //onsole.log("returning "+'localhost:27017/'+freezr_environment.dbParams.unifiedDbName? freezr_environment.dbParams.unifiedDbName: appName)
+        return 'localhost:27017/'+(freezr_environment.dbParams.unifiedDbName? freezr_environment.dbParams.unifiedDbName: appName);
+    } else if (freezr_environment && freezr_environment && freezr_environment.dbParams) {
+        //onsole.log("returning "+freezr_environment.dbParams.user + ":"+freezr_environment.dbParams.pass + "@"+freezr_environment.dbParams.host + ":"+freezr_environment.dbParams.port + "/"+ ((freezr_environment.dbParams && freezr_environment.dbParams.unifiedDbName)? freezr_environment.dbParams.unifiedDbName:appName)  +(freezr_environment.dbParams.addAuth? '?authSource=admin':''))
+      return freezr_environment.dbParams.user + ":"+freezr_environment.dbParams.pass + "@"+freezr_environment.dbParams.host + ":"+freezr_environment.dbParams.port + "/"+ ((freezr_environment.dbParams && freezr_environment.dbParams.unifiedDbName)? freezr_environment.dbParams.unifiedDbName:appName)  +(freezr_environment.dbParams.addAuth? '?authSource=admin':'');
     } 
     return null;
 }
 
-exports.resetFreezrEnvironment = function() {
-    console.log("resettting environment")
-    try {
-        delete require.cache[require.resolve(file_handler.systemPathTo("./freezr_system/freezr_environment.js"))]
-        freezr_environment = require(file_handler.systemPathTo("freezr_environment.js"));
-        return true;
-    } catch (e) {
-        helpers.internal_error("db_main", exports.version, "resetFreezrEnvironment", "Serious Error resetting freezr environment. "+e )
-        return false;
-    }
+exports.resetFreezrEnvironment = function(env) {
+    //onsole.log("resettting environment in db_main "+JSON.stringify(env))
+    freezr_environment = env;
 }  
 
-var nulify_admindb = function() {
+exports.set_and_nulify_environment = function(old_env) {
+    freezr_environment = old_env;
     exports.users = null;
     exports.installed_app_list = null; // list of apps installed by users
     exports.user_devices = null; // set of device codes couples with user_names and whether it is an login_for_app_name login
@@ -44,20 +36,6 @@ var nulify_admindb = function() {
     exports.permissions = null;
 }
 
-exports.setTemporaryFreezrEnvDbParams = function(params, unifiedDbName) {
-    console.log("setTemporaryFreezrEnvDbParams "+JSON.stringify(params)+" unify: "+unifiedDbName);
-    if (!params) {
-        environment_defaults = require('./environment_defaults.js');
-        freezr_environment = environment_defaults.autoConfigs();
-        nulify_admindb();
-        freezr_environment.params.unifiedDbName = (unifiedDbName? unifiedDbName: null);
-    } else {
-        if (!freezr_environment) freezr_environment = {params: {dbParams:{}}}
-        freezr_environment.params.dbParams = params;
-        freezr_environment.params.unifiedDbName = (unifiedDbName? unifiedDbName: null);
-    }
-    return freezr_environment.params;
-} 
 
 exports.get_real_object_id = function (data_object_id) {
     var ObjectID = require('mongodb').ObjectID;
@@ -71,14 +49,93 @@ exports.get_real_object_id = function (data_object_id) {
 }
 var get_full_coll_name = function (app_name, collection_name) {
     // gets collection name if unified db is used
-    if (freezr_environment.params.unifiedDbName) {
+    if (freezr_environment.dbParams.unifiedDbName) {
         return app_name+"__"+collection_name
     } else {
         return collection_name;
     }
 }
+
+exports.check_db = function (callback) {
+    var temp_admin_db, params_coll, env_on_db=null;
+    async.waterfall([        
+        // 1. open database connection
+        function (cb) {
+            MongoClient.connect('mongodb://'+exports.dbConnectionString('info_freezer_admin'), cb);
+        },
+
+        // 2. create collections for users, installed_app_list, user_installed_app_list, user_devices, permissions.
+        function (theclient, cb) {
+          temp_admin_db = theclient;
+          temp_admin_db.collection(get_full_coll_name('info_freezer_admin',"params"), cb);
+        },
+
+        function (the_coll, cb) {
+            params_coll = the_coll;
+            params_coll.find( {"_id":"freezr_environment"} ).toArray(cb);
+        },
+
+
+        function (results, cb) {
+            if (results && results.length>0 && results[0].params) env_on_db = results[0].params;
+            params_coll.update({'_id':"test_write_id",'foo':'bar'}, { w: 1, safe: true }, cb);
+        }
+
+    ], function(err, write_result) {
+        if (err) console.log("got err in check_db ",err)
+        if (err) callback(err, env_on_db);
+        if (!err) callback(null, env_on_db)
+    });
+}
+
+exports.get_coll = function (app_name, collection_name, callback) {
+    //onsole.log("goign to open "+app_name+" coll:"+collection_name+" connection string: "+exports.dbConnectionString(app_name))
+    
+    async.waterfall([        
+        // 1. open database connection
+        function (cb) {
+            app_name=app_name.replace(/\./g,"_");
+            MongoClient.connect('mongodb://'+exports.dbConnectionString(app_name), cb);
+        },
+
+        // 2. create collections for users, installed_app_list, user_installed_app_list, user_devices, permissions.
+        function (theclient, cb) {
+          theclient.collection(get_full_coll_name(app_name,collection_name), cb);
+        }
+    ], function(err, collection) {
+        if (err) console.log("error getting "+app_name+" collection:"+collection_name+" in get coll")
+        callback(err, collection);
+    });
+}
+
+
+exports.write_environment = function (env, callback) {
+    // todo - write to collection of env and so keep a list of all envs for later review
+    var temp_admin_db, params_coll, env_on_db=null;
+    async.waterfall([        
+        // 1. open database connection
+        function (cb) {
+            MongoClient.connect('mongodb://'+exports.dbConnectionString('info_freezer_admin'), cb);
+        },
+
+        // 2. create collections for users, installed_app_list, user_installed_app_list, user_devices, permissions.
+        function (theclient, cb) {
+          temp_admin_db = theclient;
+          temp_admin_db.collection(get_full_coll_name('info_freezer_admin',"params"), cb);
+        },
+
+        function (the_coll, cb) {
+            params_coll = the_coll;
+            params_coll.update({'_id':"freezr_environment"},{$set:{params:env}},{upsert:true}, cb)
+            //params_coll.insert({'_id':"freezr_environment","params":env}, { w: 1, safe: true }, cb);
+        }
+    ], function(err, write_result) {
+        if (err) callback(err);
+        if (!err) callback(null)
+    });
+}
 exports.init_admin_db = function (callback) {
-    console.log("Iniiating Admin DB - env is "+JSON.stringify(freezr_environment) );
+    console.log("   - Iniiating Admin DB ")//+JSON.stringify(freezr_environment) );
 
     async.waterfall([        
         // 1. open database connection
@@ -129,8 +186,8 @@ exports.permissions = null;
 var running_apps_db = {};
 
 exports.app_db_collection_get = function (app_name, collection_name, firstpass, callback) {
-    //onsole.log(" app_db_collection_get - "+app_name+"  -  " +collection_name+"- -");
-
+    //onsole.log(" app_db_collection_get - "+app_name+"  -  " +collection_name+"- -firstpass:"+firstpass);
+    //onsole.log(callback)
     if (!running_apps_db[app_name]) running_apps_db[app_name]={'db':null, 'collections':{}};
     if (!running_apps_db[app_name].collections) running_apps_db[app_name].collections= {collection_name:null};
     if (!running_apps_db[app_name].collections[collection_name]) running_apps_db[app_name].collections[collection_name] = null;
@@ -141,7 +198,7 @@ exports.app_db_collection_get = function (app_name, collection_name, firstpass, 
 
         // 1. open database connection
         function (cb) {
-            if (freezr_environment.params.unifiedDbName && unifiedDb) {
+            if (freezr_environment.dbParams.unifiedDbName && unifiedDb) {
                 cb(null, null);
             } else if (running_apps_db[app_name].db) {
                 cb(null, null);
@@ -152,7 +209,7 @@ exports.app_db_collection_get = function (app_name, collection_name, firstpass, 
 
         // 2. 
         function (theclient, cb) {
-            if (freezr_environment.params.unifiedDbName && !unifiedDb) {unifiedDb=theclient}
+            if (freezr_environment.dbParams.unifiedDbName && !unifiedDb) {unifiedDb=theclient}
             if (!unifiedDb && !running_apps_db[app_name].db) running_apps_db[app_name].db = theclient;
             if (running_apps_db[app_name].collections[collection_name]) {
                 cb(null,null);
@@ -188,7 +245,7 @@ exports.app_db_collection_get = function (app_name, collection_name, firstpass, 
         } else {
             running_apps_db[app_name].last_access = new Date().getTime();
             clearTimeout(autoCloseTimeOut);
-            if (!freezr_environment.params.unifiedDbName) autoCloseTimeOut = setTimeout(exports.closeUnusedApps,30000);
+            if (!freezr_environment.dbParams.unifiedDbName) autoCloseTimeOut = setTimeout(exports.closeUnusedApps,30000);
             callback(null, running_apps_db[app_name].collections[collection_name]);
         }
     });
@@ -202,7 +259,7 @@ exports.getAllCollectionNames = function(app_name, callback) {
         function (cb) {
             if (running_apps_db[app_name].db) {
                 cb(null, null);
-            } else if (freezr_environment.params.unifiedDbName && unifiedDb) {
+            } else if (freezr_environment.dbParams.unifiedDbName && unifiedDb) {
                 cb(null, null);
             } else {
                 MongoClient.connect('mongodb://'+exports.dbConnectionString(app_name), cb);
@@ -212,7 +269,7 @@ exports.getAllCollectionNames = function(app_name, callback) {
         // 2. 
         function (theclient, cb) {
             // unifiedDb  if (theDb) theDb.listCollections().toArray(cb); (also use theDb below)
-            if (freezr_environment.params.unifiedDbName && !unifiedDb) {unifiedDb=theclient}
+            if (freezr_environment.dbParams.unifiedDbName && !unifiedDb) {unifiedDb=theclient}
             if (!unifiedDb && !running_apps_db[app_name].db) running_apps_db[app_name].db = theclient;
             if (unifiedDb) {
                 unifiedDb.listCollections().toArray(cb);
@@ -231,7 +288,7 @@ exports.getAllCollectionNames = function(app_name, callback) {
                 nameObjList.forEach(function(name_obj) {
                     a_name = name_obj.name; 
                     if (a_name && a_name!="system") {
-                        if (!freezr_environment.params.unifiedDbName) {
+                        if (!freezr_environment.dbParams.unifiedDbName) {
                             collection_names.push(a_name);
                         } else if (helpers.startsWith(a_name,app_name+"__")) {
                             collection_names.push(a_name.slice(app_name.length+2));

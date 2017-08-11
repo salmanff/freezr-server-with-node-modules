@@ -19,8 +19,9 @@ exports.generate_login_page = function (req, res) {
         var options = {
             page_title: (req.params.app_name? "Freezr App Login for "+req.params.app_name : " Login (Freezr)"),
             css_files: './info.freezr.public/freezr_style.css',
-            initial_data: null, 
+            initial_query: null, 
             server_name: req.protocol+"://"+req.get('host'),
+            freezr_server_version: req.freezr_server_version,
             app_name: (req.params.app_name? req.params.app_name:"info.freezr.account"),
             other_variables: "var login_for_app_name="+(req.params.app_name? ("'"+req.params.app_name+"';"):"null")+";" + " var loginAction = "+(req.params.loginaction? ("'"+req.params.loginaction+"';"):"null")+";" + " var freezrServerStatus = "+JSON.stringify(req.freezrStatus) +";"
         } 
@@ -28,15 +29,9 @@ exports.generate_login_page = function (req, res) {
             if (err && req.freezr_is_setup) {
                 res.redirect('/admin/public/starterror');
             } else if ((err || !results || results.length==0) && !req.freezr_is_setup){
-                options.page_title = "Freezr Set Up";
-                options.page_url= 'public/admin_firstSetUp.html';
-                options.script_files = ['./info.freezr.account/public/admin_firstSetUp.js'];
-                options.other_variables = " var freezrServerStatus = "+JSON.stringify(req.freezrStatus)+"; "
-                if (err) options.other_variables+=" var warnings='db-unavailable';"
-                file_handler.load_data_html_and_page(res, options);
-            } else if (err) {
-                res.redirect('/admin/public/starterror');
+                res.redirect('/admin/public/firstSetUp');
             } else {
+                if (!req.session) req.session = {};
                 if (!req.session.device_code) {
                     req.session.device_code = helpers.randomText(10);
                     // todo later - Record device code below async-ly and keep track of all attempts to access 
@@ -64,7 +59,7 @@ exports.generate_applogin_results = function (req, res) {
     var options = {
         page_title: "Freezr App Login Results (Freezr)",
         css_files: './info.freezr.public/freezr_style.css',
-        initial_data: null,
+        initial_query: null,
         app_name: "info.freezr.account",
         other_variables: null,
         server_name : req.protocol+"://"+req.get('host'),
@@ -88,12 +83,11 @@ exports.generateAccountPage = function (req, res) {
         options.user_is_admin =req.session.logged_in_as_admin;
         options.server_name = req.protocol+"://"+req.get('host');
 
-        if (!options.initial_data_func) {
+        if (!options.initial_query_func) {
             options.testfrom = "ACCOUNT"
             file_handler.load_data_html_and_page(res,options)
         } else {
             req.freezrInternalCallFwd = function(err, results) {
-                //onsole.log({results})
                 if (err) {
                     console.log("error in generateAccountPage "+JSON.stringify(error));
                     res.redirect("/account/home?errorGettingPage");
@@ -102,7 +96,7 @@ exports.generateAccountPage = function (req, res) {
                     file_handler.load_data_html_and_page(res,options)
                 }
             }
-            options.initial_data_func(req,res);
+            options.initial_query_func(req,res);
         }
 
 
@@ -210,7 +204,6 @@ exports.logout = function (req, res) {
     req.session.logged_in_as_admin = false; 
     helpers.send_success(res, { 'logged_out': true });
 }
-
 exports.logout_page = function (req, res) {
     // /account/logout
     req.session.logged_in = false;
@@ -220,7 +213,6 @@ exports.logout_page = function (req, res) {
 
     res.redirect("/account/login");
 }
-
 exports.changePassword = function (req, res) {
     // /v1/account/changePassword.json
     //onsole.log("Changing password  "+JSON.stringify(req.body));
@@ -270,59 +262,6 @@ exports.changePassword = function (req, res) {
         }
     });
 };
-
-// APP MANAGEMENT
-/*
-exports.addAppManually = function (req, res) {
-    // /v1/account/add_app_manually.json
-    //onsole.log("ADDING MANUALLY "+req.body.appDomainName+" - "+req.body.appDisplayName);
-    var user_id = req.body.user_id;
-    async.waterfall([
-        // 1. check basic data exists
-        function (cb) {
-            if (!user_id) 
-                cb(helpers.missing_data("user_id"));
-            else if (!req.body.appDomainName)
-                cb(helpers.missing_data("appDomainName"));
-            else if (!req.body.appDisplayName)
-                cb(helpers.missing_data("appDisplayName"));
-            else
-                cb(null);
-        },
-
-        // 2. check if app already exists
-        function (cb) {
-            freezr_db.app_exists_in_db(req.body.appDomainName, cb);
-        },
-
-        // 3. stop if app already exists
-        function (existing_apps, cb) {
-            if (existing_apps && existing_apps>0) {
-                cb(helpers.data_object_exists("apps"));
-            } else {
-                cb(null);
-            }
-        },
-
-        // 4. Add App
-        function (cb) {
-            freezr_db.add_app(
-                req.body.appDomainName,
-                req.body.appDisplayName,
-                user_id,
-                cb);
-        }
-    ],
-    function (err, user_json) {
-        if (err) {
-            helpers.send_failure(res, err,"account_handler", exports.version,"addAppManually");
-        } else {
-            var u = new User(user_json);
-            helpers.send_success(res, {app_name: req.body.appDomainName });
-        }
-    });
-};
-*/
 exports.list_all_user_apps = function (req, res) {
     // /account/v1/app_list.json
     var user_id = req.session.logged_in_user_id;
@@ -362,7 +301,7 @@ exports.list_all_user_apps = function (req, res) {
             if (results && results.length>0) {
                 for (var i =0; i<results.length; i++) {
                     if (results[i].app_name && results[i].app_name == results[i].display_name) {results[i].display_name = results[i].display_name.replace(/\./g, '. ')}
-                    results[i].logo = file_handler.appFileExists(results[i].app_name,"static/logo.png")? ("/app_files/"+results[i].app_name+"/static/logo.png"): "/app_files/info.freezr.public/static/freezer_logo_empty.png"
+                    results[i].logo = "/app_files/"+results[i].app_name+"/static/logo.png";
                     if (removed_app_names.indexOf(results[i].app_name)>=0) {
                         removed_apps.push(results[i])
                     } else if (user_app_names.indexOf(results[i].app_name)>=0) {
@@ -387,137 +326,9 @@ exports.list_all_user_apps = function (req, res) {
         }
     });
 };
-exports.appMgmtActions  = function (req,res) /* deleteApp updateApp */ {
-    // /account/v1/appMgmtActions.json
-    console.log("At app mgmt actions "+JSON.stringify(req.body));
-    var action = (req.body && req.body.action)? req.body.action: null;
-    var app_name = (req.body && req.body.app_name)? req.body.app_name: null;
-    var user_id = req.session.logged_in_user_id;
-    
-    if (action == 'removeApp') {
-        if (user_id) {
-            freezr_db.remove_user_app(user_id, app_name, function(feedback) { helpers.send_success(res, feedback)});
-        } else {
-            helpers.send_auth_failure(res, "account_handler", exports.version,"appMgmtActions","Could not remove app without user.","auth_noUser");
-        }
-    } else if (action == 'deleteApp') {
-        if (user_id) {
-            // remove all data
-            freezr_db.try_to_delete_app(user_id, app_name, function(err, feedback) { 
-                if (err) {
-                    helpers.send_internal_err_failure(res, "freezr_db", freezr_db.version, "try_to_delete_app", "Internal error trying to delete app. App was not deleted." ) 
-                } else {
-                    helpers.send_success(res, feedback)
-                }
-            });
-        } else {
-            helpers.send_auth_failure(res, "account_handler", exports.version,"appMgmtActions","Could not remove app without admin privelages.","auth_notAdmin");
-        }
-    } else if (action == 'updateApp') {
-        var flags = new Flags({'app_name':app_name});
-        var app_config, app_display_name=null;
-        var app_path = app_name? file_handler.fullPathToUserAppFiles(app_name): null;
-
-        async.waterfall([
-            // updateApp 1. make sure data and file names exist
-            function (cb) {
-                if (!req.session.logged_in_user_id) 
-                    cb(helpers.missing_data("user_id"));
-                else if (!req.session.logged_in_as_admin)
-                    helpers.auth_failure("account_handler", exports.version,"appMgmtActions","Could not update app without admin privelages.");
-                else if (!app_name)
-                    cb(helpers.invalid_data("missing app name", "account_handler", exports.version,"appMgmtActions"));
-                else if (!helpers.valid_app_name(app_name))   
-                    cb(helpers.invalid_data("app name: "+app_name, "account_handler", exports.version,"appMgmtActions"));
-                else
-                    cb(null);
-            },
-
-            // updateApp 2. Make sure app directory exists
-            function (cb) {
-                if (file_handler.appFileExists(app_name,null)) {
-                    cb(null);
-                } else {
-                    cb(helpers.invalid_data("missing app: "+app_name, "account_handler", exports.version,"appMgmtActions"));
-                }
-            },
-
-            // updateApp 3. Get and check app_config (populate app_display_name)
-            function (cb) {
-                if ( file_handler.appFileExists(app_name,"app_config.js") ) {
-                    app_config = file_handler.get_app_config(app_name);
-                    if (app_config) {
-                        flags = file_handler.check_app_config(app_config, app_name, null, flags);
-                        if (app_config.meta.app_display_name) app_display_name = app_config.meta.app_display_name;
-                    } else {
-                        flags.add('warnings','config_file_errors - no app_config')
-                    }
-                } else {
-                    flags.add('notes','appconfig_missing');
-                }
-                if (!app_display_name) app_display_name = app_name;
-                cb(null);
-            }, 
-
-            // 4. Go through files and Sensor the code
-            function (cb) {
-                file_handler.sensor_app_directory_files(app_name, flags, cb);
-            },
-
-            // 5. see if app is already in db
-            function (newflags, dummy, cb) { 
-                if (newflags && Object.keys(newflags).length > 0) flags = newflags;
-                freezr_db.get_app_info_from_db(app_name, cb);
-            },
-
-            // 6. If app already exists, flag it as an update
-            function (app_info, cb) {
-                if (app_info) {
-                    flags.add('notes',"app_updated_msg");
-                    flags.meta.didwhat = "updated";
-                    if (app_info.display_name != app_display_name) {
-                        // todo - should update display name
-                        cb(null, null)
-                    } else {
-                        cb(null, null)
-                    }
-                } else {  //add to directory");
-                    flags.meta.didwhat = "installed";
-                    freezr_db.add_app(
-                        app_name,
-                        app_display_name,
-                        req.session.logged_in_user_id,
-                        cb);
-                }
-            },
-
-            // 7. update permission records
-            function(dummy, cb) {
-                if (app_config) freezr_db.update_permission_records_from_app_config(app_config, app_name, user_id, flags, cb);
-                else cb(null, flags)
-            },
-            function(newf2, cb) {
-                flags= newf2;
-                cb(null);
-            }
-        ],
-        function (err) {
-            flags.meta.app_name = app_name;
-            if (err) {
-                flags.add('errors','err_unknown',{'function':'appMgmtActions update', 'text':JSON.stringify(err)});
-            } 
-            //onsole.log(flags)
-            helpers.send_success(res, flags.sentencify() );
-        });
-
-    } else {
-        helpers.send_failure(res, err,"account_handler", exports.version,"appMgmtActions");
-
-    }
-}
 exports.add_uploaded_app_zip_file = function (req, res) {
     // app.put ('/v1/account/upload_app_zipfile.json', requireUserRights, uploadAppZipFile); 
-    console.log("add_uploaded_app_zip_file body"+JSON.stringify(req.body));
+    console.log("add_uploaded_app_zip_file body") //+JSON.stringify(req.body));
 
     var app_name, app_path, app_version=null; app_display_name=null;
     var flags = new Flags({});
@@ -564,27 +375,24 @@ exports.add_uploaded_app_zip_file = function (req, res) {
 
     // 3. Make sure app directory exists
         function (cb) {
-            if (file_handler.appFileExists( app_name, null ) ) {
-                cb(null);
-            } else {
-                file_handler.checkExistsOrCreateUserAppFolder(app_name, cb);
-            }
+            file_handler.checkExistsOrCreateUserAppFolder(app_name, req.freezr_environment, cb);
         },
 
     // 4. Extract Zip File Contents
         function (cb) {
-            file_handler.extractZippedAppFiles(req.file.buffer, app_name, req.file.originalname, cb);
+            file_handler.extractZippedAppFiles(req.file.buffer, app_name, req.file.originalname, req.freezr_environment, cb);
         },
 
-        // 5. Get and check app_config (populate app_version and app_display_name and permissons)
+        // 5a. Get and check app_config (populate app_version and app_display_name and permissons)
         function (cb) {
-            if ( file_handler.appFileExists(app_name,"app_config.js")  ) {
-                var app_config = file_handler.get_app_config(app_name);
+                file_handler.async_app_config(app_name, req.freezr_environment,cb);
+            },
+        // 5b. make sure all data exits
+        function (app_config, cb) {
+            if (app_config)  {
+                if (!app_version && app_config.meta && app_config.meta.app_version) app_version = app_config.meta.app_version;
+                if (app_config && app_config.meta && app_config.meta.app_display_name) app_display_name = app_config.meta.app_display_name;
                 flags = file_handler.check_app_config(app_config, app_name, app_version, flags);
-                if (app_config) {
-                    if (app_config.meta.app_display_name) app_display_name = app_config.meta.app_display_name;
-                    if (!app_version && app_config.meta.app_version) app_version = app_config.meta.app_version;
-                }
             } else {
                 flags.add('notes','appconfig_missing');
             }
@@ -601,7 +409,7 @@ exports.add_uploaded_app_zip_file = function (req, res) {
         // 6. Go through files and Sensor the code
         function (newflags, cb) {
             flags = newflags? newflags:flags;
-            file_handler.sensor_app_directory_files(app_name, flags, cb);
+            file_handler.sensor_app_directory_files(app_name, flags, req.freezr_environment, cb);
         },
 
         // 7. See if app exists
@@ -647,15 +455,156 @@ exports.add_uploaded_app_zip_file = function (req, res) {
         // todo later (may be) - also check app_confg permissions (as per changeNamedPermissions) to warn of any issues
      ],
     function (err, dummy) {
+        // todo: if there is an error in a new app_config the previous one gets wied out but the ap still runs (as it was instaled before successfully), so it should be marked with an error.
+        // todo: also better to wipe out old files so old files dont linger if they dont exist in new version
         flags.meta.app_name = app_name;
-        console.log("at end of add_uploaded_app_zip_file "+JSON.stringify(dummy))
         if (err) {
             // todo later: perhaps delete the zip file
-            flags.add('errors','err_unknown',{'function':'add_uploaded_app_zip_file', 'text':JSON.stringify(err)});
+            if (!err.code) err.code = 'err_unknown';
+            flags.add('errors', err.code, {'function':'add_uploaded_app_zip_file', 'text':err.message});
         }
+        //onsole.log(flags)
         helpers.send_success(res, flags.sentencify() );
     });
 }
+exports.appMgmtActions  = function (req,res) /* deleteApp updateApp */ {
+    // /account/v1/appMgmtActions.json
+    console.log("At app mgmt actions "+JSON.stringify(req.body));
+    var action = (req.body && req.body.action)? req.body.action: null;
+    var app_name = (req.body && req.body.app_name)? req.body.app_name: null;
+    var user_id = req.session.logged_in_user_id;
+    var app_version=null; 
+    
+    if (action == 'removeApp') {
+        if (user_id) {
+            freezr_db.remove_user_app(user_id, app_name, function(feedback) { helpers.send_success(res, feedback)});
+        } else {
+            helpers.send_auth_failure(res, "account_handler", exports.version,"appMgmtActions","Could not remove app without user.","auth_noUser");
+        }
+    } else if (action == 'deleteApp') {
+        if (user_id) {
+            // remove all data
+            freezr_db.try_to_delete_app(user_id, app_name, req.freezr_environment, function(err, feedback) { 
+                if (err) {
+                    helpers.send_internal_err_failure(res, "freezr_db", freezr_db.version, "try_to_delete_app", "Internal error trying to delete app. App was not deleted." ) 
+                } else {
+                    console.log("success is deleting app")
+                    helpers.send_success(res, {success: true})
+                }
+            });
+        } else {
+            helpers.send_auth_failure(res, "account_handler", exports.version,"appMgmtActions","Could not remove app without admin privelages.","auth_notAdmin");
+        }
+    } else if (action == 'updateApp') {
+        var flags = new Flags({'app_name':app_name});
+        var app_config, app_display_name=null;
+        //var app_path = app_name? file_handler.fullPathToUserLocalAppFiles(app_name): null;
+
+        async.waterfall([
+            // updateApp 1. make sure data and file names exist
+            function (cb) {
+                if (!req.session.logged_in_user_id) 
+                    cb(helpers.missing_data("user_id"));
+                else if (!req.session.logged_in_as_admin)
+                    helpers.auth_failure("account_handler", exports.version,"appMgmtActions","Could not update app without admin privelages.");
+                else if (!app_name)
+                    cb(helpers.invalid_data("missing app name", "account_handler", exports.version,"appMgmtActions"));
+                else if (!helpers.valid_app_name(app_name))   
+                    cb(helpers.invalid_data("app name: "+app_name, "account_handler", exports.version,"appMgmtActions"));
+                else
+                    cb(null);
+            },
+
+            // updateApp 2. Make sure app directory exists
+            function (cb) {
+                file_handler.checkExistsOrCreateUserAppFolder(app_name, req.freezr_environment, cb);
+            },
+
+            // 3a. Get and check app_config (populate app_version and app_display_name and permissons)
+            function (cb) {
+                    file_handler.async_app_config(app_name, req.freezr_environment,cb);
+                },
+            // 3b. make sure all data exits
+            function (app_config, cb) {
+                if (app_config)  {
+                    if (!app_version && app_config.meta && app_config.meta.app_version) app_version = app_config.meta.app_version;
+                    if (app_config && app_config.meta && app_config.meta.app_display_name) app_display_name = app_config.meta.app_display_name;
+                    flags = file_handler.check_app_config(app_config, app_name, app_version, flags);
+                } else {
+                    flags.add('notes','appconfig_missing');
+                }
+                if (!app_display_name) app_display_name = app_name;
+                if (!app_version) app_version = 1;
+
+                if (app_config) {
+                    freezr_db.update_permission_records_from_app_config(app_config, app_name, req.session.logged_in_user_id, flags, cb);
+                } else {
+                    cb(null, null)
+                }
+            },
+
+            // 4. Go through files and Sensor the code
+            function (newflags, cb) {
+                flags = newflags? newflags:flags;
+                file_handler.sensor_app_directory_files(app_name, flags, req.freezr_environment, cb);
+            },
+
+            // 5. see if app is already in db
+            function (newflags, dummy, cb) { 
+                if (newflags && Object.keys(newflags).length > 0) flags = newflags;
+
+                if (helpers.valid_app_name(app_name)) {    
+                    freezr_db.get_app_info_from_db(app_name, cb);
+                } else {
+                    cb(helpers.invalid_data("app name: "+app_name, "account_handler", exports.version, "appMgmtActions"));
+                }
+            },
+
+            // 6. If app already exists, flag it as an update
+            function (app_info, cb) {
+                if (app_info) {
+                    flags.add('notes',"app_updated_msg");
+                    flags.meta.didwhat = "updated (from files in directory)";
+                    if (app_info.display_name != app_display_name) {
+                        // todo - should update display name
+                        cb(null, null)
+                    } else {
+                        cb(null, null)
+                    }
+                } else {  //add to directory");
+                    flags.meta.didwhat = "installed";
+                    freezr_db.add_app(
+                        app_name,
+                        app_display_name,
+                        req.session.logged_in_user_id,
+                        cb);
+                }
+            },
+
+
+            function(app_info, cb) {
+                if (flags.meta.didwhat == "installed") {
+                    freezr_db.get_or_set_user_app_code(req.session.logged_in_user_id,app_name, cb);
+                } else {
+                    cb (null, null);
+                }
+            }
+        ],
+        function (err) {
+            flags.meta.app_name = app_name;
+            if (err) {
+                flags.add('errors','err_unknown',{'function':'appMgmtActions update', 'text':JSON.stringify(err)});
+            } 
+            console.log(flags)
+            helpers.send_success(res, flags.sentencify() );
+        });
+
+    } else {
+        helpers.send_failure(res, err,"account_handler", exports.version,"appMgmtActions");
+
+    }
+}
+
 
 // PERMISSSIONS
 exports.changeNamedPermissions = function(req, res) {
@@ -670,18 +619,25 @@ exports.changeNamedPermissions = function(req, res) {
         var requestee_app = req.params.requestee_app;
         var requestor_app  = (permission_object && permission_object.requestor_app)? permission_object.requestor_app: requestee_app;
         
-        var app_config=file_handler.get_app_config(requestor_app);
-        var app_config_permissions = (app_config && app_config.permissions && Object.keys(app_config.permissions).length > 0)? JSON.parse(JSON.stringify( app_config.permissions)) : null;
-        var schemad_permission = freezr_db.permission_object_from_app_config_params(app_config_permissions[permission_name], permission_name, requestee_app, requestor_app);
-
-        if (schemad_permission && schemad_permission.type == "folder_delegate") permission_object.collection="files";
-        if (schemad_permission && (typeof schemad_permission.sharable_groups == "string" || !isNaN(schemad_permission.sharable_groups))) schemad_permission.sharable_groups = [schemad_permission.sharable_groups];
+        var app_config, app_config_permissions, schemad_permission;
                         
-        //onsole.log("Schemad permission is "+JSON.stringify(schemad_permission))
 
         async.waterfall([
-            // 1. Check all data needed exists 
+            // 0 get app config
             function (cb) {
+                file_handler.async_app_config(requestor_app, req.freezr_environment,cb);
+            },
+            // 1. Check all data needed exists 
+            function (the_app_config, cb) {
+                app_config = the_app_config;
+                
+                app_config_permissions = (app_config && app_config.permissions && Object.keys(app_config.permissions).length > 0)? JSON.parse(JSON.stringify( app_config.permissions)) : null;
+                schemad_permission = freezr_db.permission_object_from_app_config_params(app_config_permissions[permission_name], permission_name, requestee_app, requestor_app);
+                if (schemad_permission && schemad_permission.type == "folder_delegate") permission_object.collection="files";
+                if (schemad_permission && (typeof schemad_permission.sharable_groups == "string" || !isNaN(schemad_permission.sharable_groups))) schemad_permission.sharable_groups = [schemad_permission.sharable_groups];
+
+                //onsole.log("Schemad permission is "+JSON.stringify(schemad_permission))
+        
                 if (!schemad_permission) {
                     cb(helpers.missing_data("No permission schema exists"));
                 } else if (!helpers.valid_permission_name(permission_name)  ) {
@@ -738,7 +694,6 @@ exports.changeNamedPermissions = function(req, res) {
 
             // 5.  
             function (results, cb) {
-                //onsole.log("updated the permission and got result "+JSON.stringify(results));
                 if (action == "Accept") {
                     cb(null, {aborted:false})
                 } else {
@@ -749,10 +704,10 @@ exports.changeNamedPermissions = function(req, res) {
         ], 
 
         function (err, success) {
-            //onsole.log({err, success})
             if (err) {
                 helpers.send_failure(res, err,"account_handler", exports.version,"changeNamedPermissions");
-            } else {  
+            } else { 
+                // check - to delete
                 helpers.send_success(res, {success: true, 'permission_name':permission_name  , 'buttonId':req.body.changeList[0].buttonId, 'action':action, 'aborted':success.aborted, 'flags':success.flags});
             }
         });
@@ -765,8 +720,7 @@ removeAllAccessibleObjects = function(user_id, requestor_app, requestee_app, per
     // assumes error checking all done
     var flags = new Flags({'function':'removeAllAccessibleObjects'});
     var collection_list = [], collections_affected = {}, warning_list= [], accessibles_collection; 
-        // collections_affected => { collection1:[id1, id2] , collection2:[id3,id4] }
-
+    // collections_affected => { collection1:[id1, id2] , collection2:[id3,id4] }
     //  get app_config and colelctions_affected addasunique (collections in app_config) //redundancy
 
     async.waterfall([
@@ -897,9 +851,11 @@ exports.all_app_permissions = function(req, res) {
     // app.get('/v1/permissions/getall/:requestee_app/:source_app_code', userDataAccessRights, account_handler.all_app_permissions);
     // Need to check requested permissions in app config against granted permissions
     // check by name and also make sure that it has not changed...
+    //onsole.log("all_app_permissions")
 
         var requestee_app = req.params.requestee_app;
         var returnPermissions = [], user_permissions_to_add=[], user_permissions_to_delete=[], user_permissions_changed=[];
+        var app_config;
 
         async.waterfall([
             // check app code
@@ -907,15 +863,22 @@ exports.all_app_permissions = function(req, res) {
                 freezr_db.check_app_code(req.session.logged_in_user_id, requestee_app, req.params.source_app_code, cb); 
             },
 
-            // get all_userAppPermissions - 
+            // get app config
             function (cb) {
+                file_handler.async_app_config(requestee_app, req.freezr_environment,cb);
+            },
+            // get all_userAppPermissions -
+            
+            function (the_app_config, cb) {
+                app_config = the_app_config;
                 freezr_db.all_userAppPermissions(req.session.logged_in_user_id, requestee_app, cb);
             },
+
 
             function (all_userAppPermissions, cb) {
                 // mini-hack for development only - in case app hasnt been registered or is updated offline, go to the app config to get the needs and check that they are all there and aer uptodate
                 // Can remove this for non-developers
-                var app_config=file_handler.get_app_config(requestee_app);
+                //
                 var app_config_permissions = (app_config && app_config.permissions && Object.keys(app_config.permissions).length > 0)? JSON.parse(JSON.stringify( app_config.permissions)) : null;
                 var permission_name="", schemad_permission;
 
@@ -933,6 +896,7 @@ exports.all_app_permissions = function(req, res) {
                         schemad_permission = freezr_db.permission_object_from_app_config_params(app_config_permissions[permission_name], permission_name, requestee_app)
                         if (freezr_db.permissionsAreSame(aPermission,schemad_permission)) {
                             returnPermissions.push(aPermission);
+                        // todo - if not the same then should at least update the old stored permission so itis in the future? to review
                         } else if (aPermission.granted){ // permissions generated but not the same
                             aPermission.granted = false;
                             aPermission.outDated = true;
@@ -986,8 +950,8 @@ var accountPage_Config = { // config parameters for accounts pages
         page_title: "Accounts Home (Freezr)",
         css_files: ['./info.freezr.public/freezr_style.css', 'account_home.css'],
         page_url: 'account_home.html',
-        initial_data_func: exports.list_all_user_apps,
-        //initial_data: {'url':'/account/v1/app_list.json'},
+        initial_query_func: exports.list_all_user_apps,
+        //initial_query: {'url':'/account/v1/app_list.json'},
         app_name: "info.freezr.account",
         script_files: ['account_home.js']
     }, 
@@ -1001,8 +965,8 @@ var accountPage_Config = { // config parameters for accounts pages
         page_title: "Apps (freezr)",
         css_files: ['./info.freezr.public/freezr_style.css', 'account_app_management.css'],
         page_url: 'account_app_management.html',
-        //initial_data: {'url':'/account/v1/app_list.json'},
-        initial_data_func: exports.list_all_user_apps,
+        //initial_query: {'url':'/account/v1/app_list.json'},
+        initial_query_func: exports.list_all_user_apps,
         script_files: ['account_app_management.js', './info.freezr.public/public/mustache.js']
     },
     'autoclose': {

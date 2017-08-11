@@ -52,5 +52,10 @@
 </div>
 
 <div style="text-align:center">
-	<div class="freezer_dialogue_topTitle freezer_clickable" id="button_goto_4_{{meta.app_name}}">Finalise Installation</div>
+	{{#errors}}
+		<div class="freezer_dialogue_topTitle freezer_clickable" id="button_closeMenu_1">Close</div>
+	{{/errors}}
+	{{^errors}}
+		<div class="freezer_dialogue_topTitle freezer_clickable" id="button_goto_4_{{meta.app_name}}">Finalise Installation</div>
+	{{/errors}}
 </div>

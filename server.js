@@ -1,8 +1,11 @@
 // freezr.info - nodejs system files - main file: server.js 
-const VERSION = "0.0.12";
+const VERSION = "0.0.121";
+
 
 // INITALISATION / APP / EXPRESS
-const LISTEN_TO_LOCALHOST_ON_LOCAL = true; // for local development - set to true to access local site at http://localhost:3000, and false to access it at your local ip address - eg http://192.168.192.1:3000
+console.log("=========================  VERSION August 2017 - ouath added  =======================")
+const LISTEN_TO_LOCALHOST_ON_LOCAL = true; // for local development - set to true to access local site at http://localhost:3000, and false to access it at your local ip address - eg http://192.168.192.1:3000 (currently not working)
+
 
 var fs = require('fs'),
     express = require('express'),
@@ -18,9 +21,10 @@ var db_main = require('./freezr_system/db_main.js'),
     admin_handler = require('./freezr_system/admin_handler.js'),
     account_handler = require('./freezr_system/account_handler.js'),
     helpers = require('./freezr_system/helpers.js'),
-    environment_defaults = require('./freezr_system/environment_defaults.js'),
-    app_handler = require('./freezr_system/app_handler.js'),
+    environment_defaults = require('./freezr_system/environment/environment_defaults.js'),
     file_handler = require('./freezr_system/file_handler.js'),
+    app_handler = require('./freezr_system/app_handler.js'),
+    async = require('async'),
     public_handler = require('./freezr_system/public_handler.js');
 
 // stackoverflow.com/questions/26287968/meanjs-413-request-entity-too-large
@@ -28,25 +32,8 @@ app.use(bodyParser.json({limit:1024*1024*3, type:'application/json'}));
 app.use(bodyParser.urlencoded( { extended:true,limit:1024*1024*3,type:'application/x-www-form-urlencoding' } ) ); 
 app.use(cookieParser());
 
-var freezrStatus = {
-    allOkay:true,
-    running: {
-        db:true,
-        fileSys:true,
-        fileWrite:true
-    }
-}
-
-console.log("=========================  VERSION April XX  =======================")
 var freezr_preferences;
-var freezr_environment;
-
-var oldConfig;
-try {
-    oldConfig = require("./freezr_system/config.js");
-} catch (e) {
-    oldConfig = null;
-}
+var freezr_environment, custom_file_environment;
 
 if (fs.existsSync(file_handler.systemPathTo("freezr_preferences.js"))) {
     freezr_preferences = require(file_handler.systemPathTo("freezr_preferences.js"))
@@ -54,6 +41,7 @@ if (fs.existsSync(file_handler.systemPathTo("freezr_preferences.js"))) {
     freezr_preferences = {
         params:{
             "session_cookie_secret":helpers.randomText(20),
+            "default_preference":true,
 
             "connect_on_local_wifi_only":true,
             "do_admin_on_local_wifi_only":true
@@ -61,36 +49,16 @@ if (fs.existsSync(file_handler.systemPathTo("freezr_preferences.js"))) {
     }
 }
 
-if (fs.existsSync(file_handler.systemPathTo("freezr_environment.js"))) {
-    freezr_environment = require(file_handler.systemPathTo("freezr_environment.js"));
-} else if (oldConfig && oldConfig.params && oldConfig.params.freezr_is_setup) {
-    // (console) transitional - to delete
-    freezr_environment = environment_defaults.autoConfigs();
-    freezr_environment.params.freezr_is_setup = true;
-    freezr_environment.first_user = oldConfig.params.first_user;
-    fs.writeFile(file_handler.systemPathTo("freezr_environment.js"), "exports.params=" + JSON.stringify(freezr_environment.params), function(err) {
-            if(err) {
-                console.log("ERROR WRITING new freezr_environment ")
-            } else {
-                console.log("Wrote new freezr_environment succcessfully")
-            }
-       });
-} else {
-    console.log("freezr_environment file does NOT exist - FIRST REGISTRATION WILL BE TRIGGERED.");
-    freezr_environment = environment_defaults.autoConfigs();
-    freezr_environment.params.freezr_is_setup = false;
-    freezr_environment.first_user = null;
-    //onsole.log(freezr_environment)
-}
+
 
 app.use(cookieSession(
+    // todo - move to a metof (if possible) to be able to reset coookie secret programmatically?
     {
     secret: freezr_preferences.params.session_cookie_secret,
     maxAge: 15552000000,
     store: new session.MemoryStore() // review - perhaps change this to mongo
     }
 ));
-
 app.use(function(req, res, next) {
     //stackoverflow.com/questions/22535058/including-cookies-on-a-ajax-request-for-cross-domain-request-using-pure-javascri
     res.header("Access-Control-Allow-Credentials","true");
@@ -111,16 +79,18 @@ var serveAppFile = function(req, res, next) {
     else if (helpers.startsWith(fileUrl,'/apps/')) { fileUrl = fileUrl.replace('/apps/','app_files/')} 
 
     if (fileUrl.indexOf('?')>1) { fileUrl = fileUrl.substr(0,fileUrl.indexOf('?'));} // solving slight problem when node.js adds a query param to some fetches
+
+    //onsole.log( (new Date())+" serveAppFile - "+fileUrl);
+    
     
     if (req.session && req.session.logged_in) {
-        file_handler.sendAppFile(res, fileUrl);
+        file_handler.sendAppFile(res, fileUrl, freezr_environment);
     } else {
         helpers.auth_warning("server.js", VERSION, "serveAppFile", "Unauthorized attempt to access file "+ fileUrl);
         res.sendStatus(401);
     }
 }
 var servePublicAppFile = function(req, res, next) {
-    //onsole.log( (new Date())+" servePublicAppFile - "+req.originalUrl);
     var fileUrl = file_handler.normUrl(req.originalUrl.replace('/app_files/','app_files/') );
 
     if (helpers.startsWith(fileUrl,'/apps/')) { fileUrl = fileUrl.replace('/apps/','app_files/')}
@@ -128,46 +98,42 @@ var servePublicAppFile = function(req, res, next) {
 
     if (fileUrl.slice(1)=="favicon.ico") {
         res.sendFile(file_handler.systemPathTo("app_files/info.freezr.public/static/" + fileUrl));
-    } else if (!fs.existsSync(fileUrl)) {
+    } else {
         file_handler.sendAppFile(res, fileUrl, freezr_environment);
     }
 }
 var appPageAccessRights = function(req, res, next) {
-    if ((freezr_environment.params.freezr_is_setup && req.session && req.session.logged_in) ){
+    if ((freezr_environment.freezr_is_setup && req.session && req.session.logged_in) ){
         if (req.params.page || helpers.endsWith(req.originalUrl,"/") ) {
             req.freezr_server_version = VERSION;
-            req.freezr_environment = freezr_environment.params;
+            req.freezrStatus = freezrStatus;
+            req.freezr_environment = freezr_environment;
             next();
         } else {
             res.redirect(req.originalUrl+'/');
         }
     } else {
-        if (freezr_environment && freezr_environment.params.freezr_is_setup) helpers.auth_warning("server.js", VERSION, "appPageAccessRights", "Unauthorized attempt to access page"+req.url+" without login ");
+        if (freezr_environment && freezr_environment.freezr_is_setup) helpers.auth_warning("server.js", VERSION, "appPageAccessRights", "Unauthorized attempt to access page"+req.url+" without login ");
         res.redirect('/account/login')
     }
 }
 var userDataAccessRights = function(req, res, next) {
     //onsole.log("userDataAccessRights sess "+(req.session?"Y":"N")+"  loggin in? "+(req.session.logged_in?"Y":"N"));
-    if (!freezrStatus.running.db) {
-        console.log("db is not running. server must be restarted after db starts")
-        res.sendStatus(401);
-    } else if (freezr_environment.params.freezr_is_setup && req.session && req.session.logged_in && req.session.logged_in_userid == req.params.userid){
-        req.freezr_environment = freezr_environment.params;
+    if (freezr_environment.freezr_is_setup && req.session && req.session.logged_in && req.session.logged_in_userid == req.params.userid){
+        req.freezr_environment = freezr_environment;
+        req.freezrStatus = freezrStatus;
         next();
     } else {
-        if (freezr_environment && freezr_environment.params.freezr_is_setup) helpers.auth_warning("server.js", VERSION, "userDataAccessRights", "Unauthorized attempt to access data "+req.url+" without login ");
+        if (freezr_environment && freezr_environment.freezr_is_setup) helpers.auth_warning("server.js", VERSION, "userDataAccessRights", "Unauthorized attempt to access data "+req.url+" without login ");
         res.sendStatus(401);
     }
 }
 function requireAdminRights(req, res, next) {
     //onsole.log("require admin login ");
-    if (!freezrStatus.allOkay) {
-        if (helpers.startsWith(file_handler.normUrl(req.originalUrl),'/admin')) {
-                 res.redirect("/admin/public/starterror");
-        } else { res.sendStatus(401);}
-    } if (req.session && req.session.logged_in_as_admin) {
+    if (req.session && req.session.logged_in_as_admin) {
         req.freezr_server_version = VERSION;
-        req.freezr_environment = freezr_environment.params;
+        req.freezrStatus = freezrStatus;
+        req.freezr_environment = freezr_environment;
         next();
     } else {
         helpers.auth_warning("server.js", VERSION, "requireAdminRights", "Unauthorized attempt to access admin area "+req.url+" - ");
@@ -176,14 +142,9 @@ function requireAdminRights(req, res, next) {
 }
 function requireUserRights(req, res, next) {
     //onsole.log("require user rights for "+req.originalUrl); //req.params.user_id+ " vs "+JSON.stringify(req.session));
-    if (!freezr_environment.params.freezr_is_setup && fs.existsSync(file_handler.systemPathTo("freezr_environment.js"))) {
-        freezr_environment = require(file_handler.systemPathTo("freezr_environment.js"));
-        if (freezr_environment.params.freezr_is_setup) true; //onsole.log("Reloading freezr_environment.js - first page visited after set up")
-    }
-    if (!freezrStatus.allOkay && freezr_environment.params.freezr_is_setup) {
-        res.redirect("/admin/public/starterror");
-    } else if (req.session && (req.url == "/account/login" || helpers.startsWith(req.url,'/account/applogin') || req.session.logged_in_user_id )) {
-        req.freezr_environment = freezr_environment.params;
+    if (req.session && (req.url == "/account/login" || helpers.startsWith(req.url,'/account/applogin') || req.session.logged_in_user_id )) {
+        req.freezr_environment = freezr_environment;
+        req.freezrStatus = freezrStatus;
         req.freezr_server_version = VERSION;
         next();
     } else {
@@ -191,21 +152,9 @@ function requireUserRights(req, res, next) {
         res.redirect("/account/login");
     }
 }
-function ensureThisIsFirstSetUp (req, res, next) {
-    if (!freezr_environment.params.freezr_is_setup && req.body.register_type == "setUp") {
-        req.freezr_server_version = VERSION;
-        req.freezr_environment = freezr_environment.params;
-        req.freezrStatus = freezrStatus;
-        next();
-    } else {
-        helpers.auth_warning("server.js", VERSION, "ensureThisIsFirstSetUp", "Unauthorized attempt to set up system which has already been set up. ");
-        res.sendStatus(401);
-    }
-}
-
 function uploadFile(req,res) {
     req.freezr_server_version = VERSION;
-    req.freezr_environment = freezr_environment.params;
+    req.freezr_environment = freezr_environment;
     upload(req, res, function (err) {
         if (err) {
             helpers.send_failure(res, err, "server.js", VERSION, "uploadFile");
@@ -215,7 +164,7 @@ function uploadFile(req,res) {
 }
 function uploadAppZipFile(req,res) {
     req.freezr_server_version = VERSION;
-    req.freezr_environment = freezr_environment.params;
+    req.freezr_environment = freezr_environment;
     upload(req, res, function (err) {
         if (err) {
             helpers.send_failure(res, err, "server.js", VERSION, "uploadAppZipFile");
@@ -225,8 +174,9 @@ function uploadAppZipFile(req,res) {
 }
 function addVersionNumber(req, res, next) {
     req.freezr_server_version = VERSION;
+    req.freezr_environment = freezr_environment;
     req.freezrStatus = freezrStatus;
-    req.freezr_is_setup = freezr_environment.params.freezr_is_setup;
+    req.freezr_is_setup = freezr_environment.freezr_is_setup;
     next();
 }
 
@@ -239,7 +189,7 @@ function addVersionNumber(req, res, next) {
         app.get('/apps/:app_name', appPageAccessRights, app_handler.generatePage); 
         app.get('/apps/:app_name/static/:file', serveAppFile);
         app.get('/apps/:app_name/:page', appPageAccessRights, app_handler.generatePage);
-        app.get('/allmydata/:whattodo/:app_name', appPageAccessRights, app_handler.generateDataPage);
+        app.get('/allmydata/:whattodo/:app_name', appPageAccessRights, app_handler.generateSystemDataPage);
         app.get('/favicon.ico', servePublicAppFile)
 
     // app files and pages and user files
@@ -265,8 +215,6 @@ function addVersionNumber(req, res, next) {
 
         app.get('/v1/pobject/:user_id/:app_name/:collection_name/:data_object_id', public_handler.generatePublicPage);  
         // todo: app.get('/v1/pfile/:user_id/:app_name/*', public_handler.getPublicDataObject); // collection_name is files 
-        
-
 
     // permissions
         app.put('/v1/permissions/setobjectaccess/:requestor_app/:source_app_code/:permission_name', userDataAccessRights, app_handler.setObjectAccess);
@@ -299,34 +247,37 @@ function addVersionNumber(req, res, next) {
         app.post('/account/v1/appMgmtActions.json', requireUserRights, account_handler.appMgmtActions);
 
     // admin pages
-        app.get("/admin/registration_success", function (req, res) {
-            try {
-                delete require.cache[require.resolve(file_handler.systemPathTo('freezr_environment.js'))]
-            } catch (e) {
-                helpers.internal_error("server", exports.version,"registration_success","Could not renew cache and did not initiate db - err:"+e);
-            }
-            freezr_environment = require(file_handler.systemPathTo("freezr_environment.js"));
-            freezrStatus.allOkay=true;
-            if (!file_handler.setupFileSys(freezr_environment.params) ) {
-                freezrStatus.allOkay=false;
-                freezrStatus.running.fileSys = false;
-                console.error("** ERROR accessing user file system after intial set up.");
-            } 
-            console.log("Redirecting to account/home from registration_success");
-            res.redirect("/account/home");
-            res.end();
-        });
+        app.put ('/v1/admin/oauth_perm', requireAdminRights, admin_handler.oauth_perm_make); 
+        app.get('/v1/admin/oauth/public/:dowhat', addVersionNumber, admin_handler.oauth_do);
+        
         app.get('/admin/public/:sub_page', addVersionNumber, admin_handler.generateAdminPage);
         app.get('/admin/:sub_page', requireAdminRights, admin_handler.generateAdminPage);
-        app.put ('/v1/admin/user_register', requireAdminRights, admin_handler.register); 
-        app.put ('/v1/admin/first_registration', ensureThisIsFirstSetUp, admin_handler.first_registration); 
+        app.get('/admin', requireAdminRights, admin_handler.generateAdminPage);
+        
+        app.put ('/v1/admin/user_register', requireAdminRights, admin_handler.user_register); 
+        app.put ('/v1/admin/first_registration', addVersionNumber, function (req, res) {
+            admin_handler.first_registration(req, function(err, results) {
+                if (err || !results.freezr_environment) {                     
+                    helpers.send_auth_failure(res, "admin_handler", exports.version,"first_registration",err.message, err.errCode); 
+                } else {
+                    console.log("End of process of 1st reg "+JSON.stringify(results))
+                    freezr_environment = results.freezr_environment
+                    file_handler.resetFreezrEnvironment(freezr_environment);
+                    freezrStatus = results.fstatus;
+                    freezrStatus.fundamentals_okay = getAllOkayStatus(freezrStatus);
+                    helpers.send_success(res, {user:results.user, freezrStatus:freezrStatus});
+                }
+            })
+        }); 
         app.get('/v1/admin/user_list.json', requireAdminRights, admin_handler.list_all_users);
     
     // default redirects
         app.get("/", function (req, res) {
             // to if allows public people coming in, then move to public page
             //onsole.log("redirecting to account/home as default for "+req.originalUrl);
-            res.redirect( (req.session && req.session.logged_in)? "/account/home":"/account/login");
+            var redirect_url = (req.session && req.session.logged_in)? "/account/home": (freezr_preferences.params.default_to_public? "/ppage":"/account/login");
+
+            res.redirect( redirect_url);
             res.end();
         });
         app.get('*', function (req, res) {
@@ -336,73 +287,165 @@ function addVersionNumber(req, res, next) {
         });
 
 
-// RUN APP 
+// SET UP AND RUN APP 
 
-require('dns').lookup(require('os').hostname(), function (err, add, fam) {
-    freezr_environment.ipaddress = (helpers.startsWith(add,"192.168") && LISTEN_TO_LOCALHOST_ON_LOCAL)? "localhost" : add;
-    freezr_environment.port = freezr_environment.params.port;   
 
-    console.log('Running on local ip address: '+freezr_environment.ipaddress+" : "+freezr_environment.port);
-    if (process && process.env && process.env.PORT) console.log("process port exists "+process.env.PORT)
-    if (process && process.env && process.env.IP) console.log("process ip exists "+process.env.IP)
+var freezrStatus = {
+    fundamentals_okay: null,
+    environment_file_exists_no_faults : false,
+    can_write_to_system_folder : false,
+    can_write_to_user_folder : false,
+    can_read_write_to_db : false,
+    environment_mismatch : false
+}
+// setting up freezr_environment
+// Checks file on server - if so, use that but check against the version of the db and mark error if they are different
+// But if file doesn't exist (it could be because of a restart in docker wiping it out) use teh db. (Not an error - just warn)
+async.waterfall([   
+    // 0 Read freezr_environment from file and initiate environment or use defaults
+    function (cb) { // todo - make async with errr coming back from init_custome_env
+        if (fs.existsSync(file_handler.systemPathTo("freezr_environment.js"))) {
+            try {
+                console.log("1 - Reading from freezr_environment file");
+                freezr_environment = require(file_handler.systemPathTo("freezr_environment.js"));
+                freezr_environment = freezr_environment.params;
+                freezrStatus.environment_file_exists_no_faults = true;
+                if (freezr_environment && freezr_environment.userDirParams && freezr_environment.userDirParams.name) {
+                    file_handler.init_custom_env(freezr_environment, cb);
+                } else {
+                    cb(null);
+                }
+            } catch(e) {
+                cb(helpers.error("1 - ERROR: could not read / parse freezr_environment file","freezr_environment_mal_formed"))
+            }
+        } else {
+            console.log("1 - freezr_environment file does NOT exist.");
+            freezr_environment = environment_defaults.autoConfigs();
+            freezr_environment.freezr_is_setup = false;
+            freezr_environment.first_user = null;
+            cb(null);
+        }
+        
+    }, 
+    // 1 Get ip address for local apps (currently not working - todo to review)
+    function (cb) { 
+        //onsole.log("require('os').hostname()"+require('os').hostname())
+        if (LISTEN_TO_LOCALHOST_ON_LOCAL) {
+            cb(null)
+        } else {
+            require('dns').lookup(require('os').hostname(), function (err, add, fam) {
+                // Priorities in choosing default address: 1. default ip from environment_defaults (if written) 2. localhost if relevant 3. address looked up.
+                freezr_environment.ipaddress = freezr_environment.ipaddress? freezr_environment.ipaddress: ((helpers.startsWith(add,"192.168") && LISTEN_TO_LOCALHOST_ON_LOCAL)? "localhost" :add);
+                console.log("hostname currently not working - Once working: Would be running on local ip Address: "+freezr_environment.ipaddress);
+                cb(null);
+           }) 
+        }
+    }, 
+    // 2. check can write to system 
+    function (cb) { 
+        fs.writeFile(file_handler.systemPathTo("test_write.txt"), "Testing write on server", cb)
+    }, 
+    function (cb) { 
+        freezrStatus.can_write_to_system_folder = true;
+        console.log("2 - check - Can Write to System Folder.")
+        cb(null);
+    },
 
-    CheckAndRecordFreezrStatus(function() {
-        if (!fs.existsSync(file_handler.systemPathTo("freezr_preferences"))) {
+    // test check db and re-wrtie or check freezr_environment
+    function (cb) { 
+        db_main.resetFreezrEnvironment(freezr_environment);
+        db_main.check_db(function (err, env_on_db) {
+            //onsole.log("got env_on_db ",env_on_db)
+            if (!err) freezrStatus.can_read_write_to_db = true;
+            if (freezrStatus.environment_file_exists_no_faults) {
+                if (!helpers.variables_are_similar(freezr_environment,env_on_db)) {
+                    helpers.warning("server.js", exports.version, "startup_waterfall", "STARTUP MISMATCH - freezr_environment on server different from one on db" )
+                    freezrStatus.environment_mismatch = true;
+                    console.log("3 - PROBLEM freezr_environment NOT consistent with db version")
+                } else {
+                    console.log("3 - check - db working - freezr_environment consistent with db version")
+                }
+                cb(null)
+            } else {
+                if (freezr_environment.freezr_is_setup) helpers.warning("server.js", exports.version, "startup_waterfall", "freezr_environment on server not found" )
+                
+                if (env_on_db && freezrStatus.can_write_to_system_folder) {   
+                    console.log("3 - Using db version of freezr_environment (as file doesnt exist)")
+                    freezr_environment = env_on_db
+                    db_main.resetFreezrEnvironment(freezr_environment);
+                    fs.writeFile(file_handler.systemPathTo("freezr_environment.js", false, freezr_environment), "exports.params=" + JSON.stringify(freezr_environment), function(err) { 
+                        if(err) {
+                            freezrStatus.can_write_to_system_folder = false;
+                            helpers.warning("server.js", exports.version, "startup_waterfall", "Strange inconsistency writing files to server root" )
+                        }
+                        cb(null)
+                    })
+                } else {
+                    console.log("3 - No freezr_environment on db or file - FIRST REGISTRATION WILL BE TRIGGERED")
+                    cb(null)
+                }
+            }
+        })
+    }, 
+
+    // initiate db if all okay
+    function (cb) { 
+        if (freezrStatus.can_read_write_to_db) {
+            db_main.init_admin_db(function (err, results) {
+                if (err) {
+                    helpers.warning("server.js", exports.version, "startup_waterfall", "Strange inconsistency getting error initiating db" )
+                    freezrStatus.can_read_write_to_db = false;
+                }  
+                cb(null);
+            });
+        } else {            
+            cb(null);
+        }            
+    }, 
+    // Wrtie freezr preferences if doesnt exist
+    function (cb) { 
+        if (freezrStatus.can_write_to_system_folder && !fs.existsSync(file_handler.systemPathTo("freezr_preferences"))) {
             fs.writeFile(file_handler.systemPathTo("freezr_preferences.js"), "exports.params=" + JSON.stringify(freezr_preferences.params), function(err) {
                 if(err) {
-                    freezrStatus.allOkay=false;
-                    freezrStatus.running.fileWrite = false;
-                    console.error("** FATAL ERROR writing files in root directory (1).");
+                    helpers.warning("server.js", exports.version, "startup_waterfall", "Stransge inconsistency writing files (freezr_preferences) onto server" )
+                } else {
+                    console.log("4 - Can write to system folders")                    
                 }
-                console.log("Going to listen at "+freezr_environment.port + " ip:" +freezr_environment.ipaddress)
-                console.log(" - - - - - - - - -  - - - - - - - - - - - - - - - - - - - - - - - - -")
-                app.listen(freezr_environment.port) //, freezr_environment.ipaddress);
+                cb(null)
             }); 
-        } else {
-            console.log("freezr_preferences.js exists - Going to listen at "+freezr_environment.port + " ip:" +freezr_environment.ipaddress)
-            app.listen(freezr_environment.port)//, freezr_environment.ipaddress);
-        }
-    })
-
-
-})
-
-var CheckAndRecordFreezrStatus = function(callback) {
-    freezrStatus = {
-        allOkay:true,
-        running: {
-            db:true,
-            fileSys:true,
-            fileWrite:true
-        }
-    }
-    fs.writeFile(file_handler.systemPathTo("test_write.txt"), "Testing write on server", function(err) {
-            if(err) {
-                freezrStatus.allOkay=false;
-                freezrStatus.running.fileWrite = false;
-                console.error("** FATAL ERROR writing files in root directory. (2)");
-                // todo later: this can potentially be kept on external userfiles... need to create logic
-            }
-            if (freezr_environment.params.freezr_is_setup && !file_handler.setupFileSys(freezr_environment.params) ) {
-                freezrStatus.allOkay=false;
-                freezrStatus.running.fileSys = false;
-                console.error("** ERROR initializing user file system. ");
-            }  
-            // add userfiles try and db try
-            if (freezr_environment.params.freezr_is_setup) {
-                db_main.init_admin_db(function (err, results) {
-                    if (err) {
-                        console.error("** FATAL ERROR ON STARTUP - DB not available: "+JSON.stringify(err));
-                        freezrStatus.allOkay=false;
-                        freezrStatus.running.db = false;
-                    }  
-                    callback();
-                });
+        } else {cb(null)}
+    },
+    // Check if can write to user folder
+    function (cb) {
+        file_handler.writeTextToUserFile ("userapps", "test_write.txt", "Testing write on server", {fileOverWrite:true}, null, null, freezr_environment, function (err) {
+            if(err) { 
+                helpers.warning("server.js", exports.version,"startup_waterfall","failure to write to user folder - "+err);
             } else {
-                callback();
+                console.log("5 - Can write to user folders")           
             }
-            
-       }); 
-}
+            freezrStatus.can_write_to_user_folder = err? false:true;
+            freezrStatus.fundamentals_okay = getAllOkayStatus(freezrStatus);
+            file_handler.resetFreezrEnvironment(freezr_environment);
+            cb(null);
+        })
+    }], 
+    function (err) {
+        console.log("Startup checks complete.")
+        console.log("freezr_environment: ")
+        console.log(freezr_environment)
+        console.log("freezrStatus: ")
+        console.log(freezrStatus)
+        if (err) { 
+            helpers.warning("server.js", exports.version, "startup_waterfall", "STARTUP ERR "+JSON.stringify(err) )        
+        }    
+        app.listen(freezr_environment.port) //, freezr_environment.ipaddress)
+        console.log("Going to listen on port "+freezr_environment.port)
+    }
+)
 
+var getAllOkayStatus = function(aStatus) {
+    return (aStatus.can_write_to_user_folder && aStatus.can_read_write_to_db)
+
+}
+        
 

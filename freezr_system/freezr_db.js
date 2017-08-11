@@ -11,6 +11,7 @@ const ARBITRARY_COUNT = 200;
 
 // APP_DB's - pass through to main_db
 exports.app_db_collection_get = function (app_name, collection_name, callback) { 
+    //onsole.log("app_db_collection_get "+app_name)
     db_main.app_db_collection_get (app_name, collection_name, true, callback)
 }
 exports.real_id = function(data_object_id,app_config,collection_name) {
@@ -22,9 +23,11 @@ exports.real_id = function(data_object_id,app_config,collection_name) {
     }
 }
 exports.init_admin_db = function(callback) { db_main.init_admin_db(callback)} 
-exports.setTemporaryFreezrEnvDbParams = function(params, unifiedDbName) {return db_main.setTemporaryFreezrEnvDbParams(params, unifiedDbName)} 
-exports.resetFreezrEnvironment = function()  {db_main.resetFreezrEnvironment() }
-
+exports.resetFreezrEnvironment = function(env)  {db_main.resetFreezrEnvironment(env) }
+exports.set_and_nulify_environment = function(env)  {db_main.set_and_nulify_environment(env) }
+exports.write_environment = function(env, callback)  {db_main.write_environment(env, callback) }
+exports.get_coll = db_main.get_coll;
+//exports.get_coll = function(app_name, collection_name, callback) { db_main.get_coll(app_name, collection_name, callback);}
 
 // DB calls
 function object_by_unique_field (collection, field, value, callback) {
@@ -148,6 +151,7 @@ exports.all_users = function (sort_field, sort_desc, skip, count, callback) {
         callback(helpers.internal_error("freezr_db", exports.version, "all_users", "users dtabase is unavailable" ))
     }
 };
+
 
 // USER_DEVICES
 exports.set_or_update_user_device_code = function (device_code, user_id,login_for_app_name, callback){
@@ -474,11 +478,15 @@ exports.all_user_apps = function (user_id, sort_field, sort_desc, skip, count, c
         sort[sort_field] = sort_desc ? -1 : 1;
         skip = skip? skip:0;
         count = count? count:ARBITRARY_COUNT;
-        db_main.user_installed_app_list.find({'_creator':user_id})
-            .sort(sort)
-            .limit(count)
-            .skip(skip)
-            .toArray(callback);
+        if (db_main && db_main.user_installed_app_list){
+                db_main.user_installed_app_list.find({'_creator':user_id})
+                    .sort(sort)
+                    .limit(count)
+                    .skip(skip)
+                    .toArray(callback);
+        } else {
+            callback(helpers.state_error("freezr_db", exports.version, "all_user_apps", exports.error("missing_db","The db is not running.") ) )
+        }
     }
 };
 exports.getAllCollectionNames = db_main.getAllCollectionNames;
@@ -550,8 +558,8 @@ exports.remove_user_records = function (user_id, app_name, callback) {
 
         });
 }
-exports.try_to_delete_app = function (user_id, app_name, callback) { 
-    //onsole.log("try_to_delete_app "+app_name);
+exports.try_to_delete_app = function (user_id, app_name, env_params, callback) { 
+    console.log("try_to_delete_app "+app_name);
     var other_data_exists = false;
     async.waterfall([
         // validate params ad remvoe all user data
@@ -577,8 +585,9 @@ exports.try_to_delete_app = function (user_id, app_name, callback) {
 
         // remove app directory
         function (results, cb) {
-            if (!other_data_exists && file_handler.appFileExists(app_name)) {
-                file_handler.deleteAppFolderAndContents(app_name, cb);
+            if (!other_data_exists) {
+                //onsole,log("going to deleteAppFolderAndContents")
+                file_handler.deleteAppFolderAndContents(app_name, env_params, cb);
             } else {
                 cb(null, null);
             }
@@ -851,7 +860,8 @@ exports.permission_object_from_app_config_params = function(app_config_params, p
     return returnpermission;
 }
 exports.permissionsAreSame = function (p1,p2) {
-    //
+    //var sim = objectsAreSimilar(all_fields_to_check_for_permission_equality, p1,p2);
+    //onsole.log("checking perm similarity ",p1,p2,"is similar? "+sim)
     return objectsAreSimilar(all_fields_to_check_for_permission_equality, p1,p2);
 }
 
@@ -893,143 +903,44 @@ exports.check_app_code = function(user_id, app_name, source_app_code, callback) 
 
 // PERMS - Unused / unchecked functions
 exports.ungrant_all_field_permissions_by_name = function(permission_record, user_id, callback) {
-    var requestee_app = permission_record.requestee_app;
-    var requestor_app = permission_record.requestor_app;
-    var permission_name =  permission_record.permission_name;
-    var permissionCollection;
-
-    var app_config = exports.get_app_config(requestor_app);
-    var appDb;
-
-        async.waterfall([
-        // 1. make sure all data exits
-        function (cb) {
-            if (!user_id) {
-                cb(helpers.missing_data("user_id", "freezr_db", exports.version, "ungrant_all_field_permissions_by_name"));
-            } else if (!requestee_app || !requestor_app){
-                cb(helpers.missing_data("requestee_app or requestor_app", "freezr_db", exports.version, "ungrant_all_field_permissions_by_name"));
-            } else {
-                cb(null);
-            }
-        },
-
-        // 2. get collection
-        function (cb) {
-            exports.app_db_collection_get(requestee_app.replace(/\./g,"_") , "field_permissions", cb);
-        },
-
-        // 3. find field permissions
-        function (theCollection, cb) {
-            permissionCollection = theCollection;
-            permissionCollection.update(
-                {'_creator':user_id, 'requestor_app':requestor_app, 'permission_name':permission_name },
-                { $set: {granted: false, denied: true} }, 
-                {safe: true }, 
-                cb);
-        }
-    ], 
-    function (err, results) {
-        if (err) {
-            callback(err);
-        } else {
-            callback(null, {'success':true, 'results':results});
-        }
-    });
 }
-exports.ungrant_all_user_record_access = function (permission_object, user_id, callback){
-    // for each collection... open collection
-        
-    var requestee_app = permission_record.requestee_app;
-    var requestor_app = permission_record.requestor_app;
-    var permission_name =  permission_record.permission_name;
-
-    var app_config = helpers.get_app_config(req.params.requestor_app);
-
-    var permission_model= (app_config && app_config.permissions && app_config.permissions[req.params.permission_name])? app_config.permissions[req.params.permission_name]: null;
-
-    async.waterfall([
-        // 1. make sure all data exits
-        function (cb) {
-            if (!user_id) {
-                cb(helpers.missing_data("user_id", "freezr_db", exports.version, "ungrant_all_user_record_access"));
-            } else if (!requestee_app || !requestor_app){
-                cb(helpers.missing_data("requestee_app or requestor_app", "freezr_db", exports.version, "ungrant_all_user_record_access"));
-            } else if (!permission_model){
-                cb(helpers.missing_data("permission_model", "freezr_db", exports.version, "ungrant_all_user_record_access"));
-            } else {
-                cb(null);
-            }
-        },
-
-        // 3. open or create field_permissions collection
-        function (cb) {
-            async.forEach(permission_model.collections, function (collection_name, cb2) {
-                async.waterfall([
-
-                function (cb) {
-                    freezr_db.app_db_collection_get(requestee_app.replace(/\./g,"_") , collection_name, cb);
-                },
-
-                // 1. open object by id 
-                function (theCollection, cb) {
-                    theCollection.find({'_id':real_object_id}).toArray(cb);
-                },
-
-                ], 
-                function (err, results) {
-                    if (err) {
-                        cb(err);
-                    } else {
-                        cb(null);
-                    }
-                });
-                
-            }, 
-            function (err) {
-                if (err) cb(err)
-                else cb(null)
-            });
-        }
-    ], 
-    function (err, results) {
-        if (appDb) appDb.close();
-        if (err) {
-            callback(err);
-        } else {
-            callback(null, {'success':true, 'results':results});
-        }
-    });
+exports.ungrant_all_user_record_access = function (permission_object, user_id, callback) {
 }
 exports.check_query_permissions = function(user_id, queryJson, app_name, source_app_code, callback) {
-    // check app code... ie open user_installed_app_list and make sure app source code is correct
-     // see if query is _creator is user_id... or query and is user_id... if so send cb(null)
-    // for each user, see if permission has been given
-    async.waterfall([
-        // 1. Check App Code 
-        function (cb) {
-            exports.check_app_code(user_id, app_name, source_app_code, cb);
-        }, 
-
-        function (cb) {
-            cb(null);
-        }
-    ], 
-    function (err, results) {
-        if (err) {
-            callback(err);
-        } else {    
-            callback(null)
-        }
-    });
 }
+
+// OTHER / OAUTH
+
+exports.all_oauths = function (include_disabled, skip, count, callback) {
+    let sort = {};
+    skip = skip? skip: 0;
+    count = count? count:ARBITRARY_COUNT;
+    query = include_disabled? {}:{enabled:true}
+    db_main.get_coll ("info.freezr.admin", "oauth_permissions", function (err, oauths) {
+        if (err) {
+            console.log("got err in all_oauths "+err)
+        } else if (oauths) {
+            oauths.find(query)
+                .sort(sort)
+                .limit(count)
+                .skip(skip) 
+                .toArray(callback);
+        } else {
+            callback(helpers.internal_error("freezr_db", exports.version, "all_oauths", "oauths dtabase is unavailable" ))
+        }
+    }) 
+};
+
 
 // General comparison functions and mongo...
 var objectsAreSimilar = function(attribute_list, object1, object2 ) {
-    // todo this is very simple - can improve
+    // console.log - todo this is very simple - need to improve
     var foundUnequalObjects = false;
     //onsole.log("Checking similarity for 1:"+JSON.stringify(object1)+"  "+" VERSUS:  2:"+JSON.stringify(object2));
     for (var i=0; i<attribute_list.length; i++) {
         if ((JSON.stringify(object1[attribute_list[i]]) != JSON.stringify(object2[attribute_list[i]])) && (!isEmpty(object1[attribute_list[i]]) && !isEmpty(object2[attribute_list[i]]))) {
+            console.log("unequal objects found ", object1[attribute_list[i]] , " and ", object2[attribute_list[i]])
+            // todo - improve checking for lists
             foundUnequalObjects=true;
         };
     }

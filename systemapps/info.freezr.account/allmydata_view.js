@@ -38,6 +38,7 @@ freezr.initPageScripts = function() {
 			showWarning("Error connecting to server");
 		} else {
 			configReturn = freezr.utils.parse(configReturn);
+			console.log(configReturn);
 			dl.meta.all_collection_names = configReturn.collection_names;
 			dl.meta.app_config = configReturn.app_config;
 			dl.meta.num_collections_retrieved = 0;

@@ -13,7 +13,7 @@ var async = require('async'),
         groups_for_fields: ["user","logged_in"],
         type_names: ["folder_delegate","field_delegate","object_delegate", "db_query"], // used in getDataObject
     }
-    var reserved_collection_names = ["files", "field_permissions", "accessible_objects"];
+    var reserved_collection_names = ["field_permissions", "accessible_objects"]; // "files" s also reserved but can write to it
 
     // note - App_name and user_id etc could have spaces but need to deCodeUri when in url 
     exports.valid_app_name = function(app_name) {
@@ -61,9 +61,7 @@ var async = require('async'),
     exports.valid_collection_name = function(collection_name,is_file_record)  {
         if (collection_name.indexOf("_")>-1 || collection_name.indexOf("/")>-1 || collection_name.indexOf(" ")>-1  || collection_name.indexOf(".")>-1 || (exports.starts_with_one_of(collection_name, ['.','-','\\',"system"] )) ) {
             return false
-        } else if (is_file_record && reserved_collection_names.indexOf(collection_name)>-1 && collection_name!="files"){
-            return false;
-        } else if (!is_file_record && reserved_collection_names.indexOf(collection_name)>-1){
+        } else if (reserved_collection_names.indexOf(collection_name)>-1){
             return false;
         } 
         return true;
@@ -93,6 +91,12 @@ var async = require('async'),
         e.code = code;
         return e;
     };
+    exports.state_error = function (system_file, version, theFunction, error, errCode ) {
+        if (!errCode && error.code) errCode = error.code
+        console.log ("* * * ERROR *** : Error in system_file "+system_file+" function: "+theFunction+" code: "+errCode+" message:"+error);
+        return exports.error((errCode? errCode : "uknown error"), error.message);
+    };
+
     exports.auth_failure = function (system_file, version, theFunction, message, errCode ) {
         console.log ("* * * ERROR *** :  Auth Error in system_file "+system_file+" function: "+theFunction+" message:"+message);
         return exports.error((errCode? errCode : "authentication"),
@@ -116,6 +120,11 @@ var async = require('async'),
         console.log ("App Data ERROR in function: "+theFunction+" app_name: "+app_name+" message:"+message);
         return exports.error("app_data_error", message);
     }
+    exports.app_config_error = function(version, theFunction, app_name, message) {
+        console.log ("App Config ERROR (from "+theFunction+") for app_name: "+app_name+":"+message);
+        return exports.error("app_config_error", message);
+    }
+
     exports.rec_missing_error = function(version, theFunction, app_name, message) {
         console.log ("App Data ERROR in function: "+theFunction+" app_name: "+app_name+" message:"+message);
         return exports.error("rec_missing_error", message);
@@ -163,7 +172,10 @@ var async = require('async'),
         return exports.error("invalid_user_id",
                             "That's not a valid display name - cannot include spaces. sorry");
     };
-
+    exports.malformed_config = function (app_name) {
+        return exports.error("malformed_config",
+                            "The app_config.json file for "+app_name+"could not be parsed. It may be configured badly, or the JSON structure is not valid");
+    };
 
 
 // UTILITIES
@@ -248,8 +260,70 @@ exports.getUniqueWords = function (anObject,theFields){
     }
 }
 
+exports.variables_are_similar = function (obj1, obj2) {
+    //onsole.log("variables_are_similar ",JSON.stringify(obj1),JSON.stringify(obj2)," - - - - -----------------")
+    if (typeof obj1 != typeof obj2) {
+        console.log("variables_are_similar NOT - Type mismatch ",obj1,obj2)
+        return false
+    } else if (obj1 == obj2) {
+        return true
+    } else if (typeof obj1 == 'string'  || typeof obj1 == 'number') {
+        return obj1 == obj2
+    } else if (Array.isArray(obj1) && Array.isArray(obj2) ) {
+        //go through list and remove from obj2.. then chekc if empty
+        return arrays_are_similar(obj1, obj2)
+    } else if (typeof obj1 == "object") {
+        return objects_are_similar(obj1, obj2)
+    } else {
+        console.log("variables_are_similar NOT - Unknown mismatch ",obj1,obj2)
+        return false        
+    }
 
-    
+    // Array.isArray(anObject) || typeof anObject != "object"
+}
+var arrays_are_similar = function(list1,list2) {
+    if (list1.length != list2.length) {
+        console.log("variables_are_similar NOT - lists of idfferent engths")
+        return false;
+    } else if (list1.length==0){
+        return true
+    } else {
+        for (var i =0; i<list1.length; i++) {
+            if (!exports.variables_are_similar(list1[i], list2[i])) {
+                console.log("variables_are_similar NOT - lists are unsimilar - may be unordered - todo - add unordered option to lists")
+                return false;
+            }
+        }
+        return true
+    }
+}
+var objects_are_similar = function (obj1, obj2) {
+    if (!obj1 && !obj2) {
+        return true
+    } else if (!obj1) {
+        console.log("objects_are_similar NOT - missing obj1 vy obj2 ",obj2)
+        return false
+    } else if (!obj2) {
+        console.log("objects_are_similar NOT -missing obj2 vy obj1 ",obj1)
+        return false
+    } else {
+        for (var key in obj1) {
+          if (obj1.hasOwnProperty(key)) {
+            if (!exports.variables_are_similar(obj1[key],obj2[key]) ) { 
+                console.log("objects_are_similar NOT -Mismatch comparing ",key,obj1[key],obj2[key])
+                return false;
+            }
+            delete obj2[key]
+          }
+        }
+        for (var key in obj2) {
+          if (obj2.hasOwnProperty(key)) {
+            return false
+          }
+        }
+        return true;
+    }
+}
 
 
 

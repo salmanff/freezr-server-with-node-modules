@@ -11,7 +11,7 @@
 		var exports = {structure:null};
 
 	    var freezr_info_page_url = null;
-	    var freezr_info_initial_data = null;
+	    var freezr_info_initial_query = null;
 	    var freezr_app_code = null;
 	    var freezr_user_id = null;
 	    var freezr_messages = null;

@@ -1,0 +1,116 @@
+api.getFile("/"+fileUrl, function (err, fileJson , theBod) {
+            console.log("Callbacked theBod  type " + (typeof theBod));
+            //console.log("Callbacked all " +JSON.stringify(fileJson));
+            //res.sendFile(fileJson)
+            if (fileJson && fileJson.statusCode == 200) {
+                //if (fileJson.headers && fileJson.headers["content-type"]) res.writeHead(200, { "Content-Type": fileJson.headers["content-type"] });
+                //onsole.log(JSON.stringify(fileJson))
+                //res.set({"Content-Disposition":"attachment; filename=\"fileUrl\""});
+                var filename = fileUrl.substr(fileUrl.lastIndexOf("/")+1)
+                var contentType = null;
+                if (fileJson.headers && fileJson.headers["content-type"]) {
+                    contentType = fileJson.headers["content-type"]
+                    //if (contentType) contentType = contentType.substr(0,contentType.indexOf(";"));      
+                }
+                  if (fileJson.headers && fileJson.headers["content-length"]) {
+                    contentLength = fileJson.headers["content-length"]
+                    //if (contentType) contentType = contentType.substr(0,contentType.indexOf(";"));      
+                }          
+                
+                console.log("status OK - Callbacked  " +filename+" - "+contentType+" - "+JSON.stringify(fileJson.headers));
+
+                //res.setHeader('Content-disposition', 'attachment; filename=' + filename);
+                //if (fileJson.headers && fileJson.headers["content-type"]) res.setHeader('Content-type', fileJson.headers["content-type"]);                
+                //convert to a buffer and send to client
+                //var fileContents = new Buffer(fileJson.body, "base64"); res.send(200, fileContents);
+                /*
+                res.set({'Content-Disposition':'attachment; filename=\"filename\"'});
+                if (fileJson.headers && fileJson.headers["content-type"]) res.set({ "Content-Type": fileJson.headers["content-type"] });                
+                
+                */
+                
+
+                //res.setHeader('Content-disposition', 'attachment; filename=' + filename );
+                //res.setHeader("Content-Type", contentType);
+                //res.end(fileJson.body);
+                
+                      //              res.setHeader("Content-Type", contentType);
+                    //                res.set({"Content-Disposition":"attachment; filename=\"filename\""});
+                        //            res.send(fileJson.body);
+                
+                //var readStream = fs.createReadStream(theBod);
+                /*
+                var wstream = fs.createWriteStream(filename);
+                wstream.write(theBod);
+                wstream.end();
+                */
+                //var buffer = new Buffer(theBod).toString("base64");
+                //var buffer = new Buffer(theBod, "base64");
+                //new Buffer("Hello World").toString('base64')
+
+                //res.setHeader('Content-disposition', 'attachment; filename=' + filename );
+                //res.write(theBod, "image");
+
+                //var buffer= new Buffer(theBod)
+                 
+                //var base64data = new Buffer(theBod).toString('base64')
+                /*
+                res.setHeader("Content-Length", contentLength);
+                res.writeHead(200, {"Content-Type": contentType });
+                console.log("Callbacked theBod " ,theBod.substr(7));
+                res.end(theBod.substr(7));
+
+               */
+
+/*
+                var FileAPI = require('file-api');
+                var File = FileAPI.File;
+
+                var theFile = new File({ 
+                  name: filename,   // required
+                  type: contentType,     // optional
+                  buffer: new Buffer(theBod)
+                });
+
+                res.end(theFile)
+                */
+                /*
+                var options = {
+                    method: 'GET',
+                    //url: 'https://salmanff.com/app_files/info.freezr.public/static/freezer_log_top.png'
+                    host: 'techmeme.com',
+                    //port: '8080',
+                    path: '/img/techmeme135.png'
+                  };
+                var http = require("http")
+                console.log("XXXX")
+                var request = http.request(options, function(response) {
+                    var data = '';
+
+                  response.on('data', function(chunk) {
+                    data += chunk;
+                  });
+
+                  response.on('end', function() {
+                    console.log("GOT DATA FROM REQ "+data)
+                    response.pipe(res)
+                    // do something with data
+                  });
+                });
+                */
+                /*
+                res.writeHead(200, {
+                        "Content-Type": contentType , 
+                        'Content-disposition': 'filename=' + filename,
+                        "Content-Length": contentLength});
+                console.log("length is "+contentLength)
+                res.end(new Buffer(theBod, 'binary'));
+                //res.write(theBod);
+                //res.end();
+                */
+
+            } else {
+                console.log("ERROR GETTING FILE "+fileUrl)
+                console.log(JSON.stringify(fileJson))
+            }
+        })

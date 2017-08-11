@@ -78,14 +78,6 @@ freezr.db.getById = function(data_object_id, callback, collection_name, permissi
   //onsole.log("getting url ",url)
   freezer_restricted.connect.read(url, options, callback);
 }
-freezr.db.getByPublicId = function(data_object_id, callback) {
-  // get a specific public object by its object id
-  // app_config needs to be set up for this and item to have been permissioned and tagged as public
-  if (!data_object_id) {callback({"error":"No id sent."});}
-  var url = '/v1/pdb/'+data_object_id;
-
-  freezer_restricted.connect.read(url, options, callback);
-}
 freezr.db.query = function(callback, permission_name, options) {
   // 
   // options are:
@@ -100,12 +92,21 @@ freezr.db.query = function(callback, permission_name, options) {
 
   freezer_restricted.connect.send(url, JSON.stringify(options), callback, 'POST', 'application/json');
 }
+freezr.db.getByPublicId = function(data_object_id, callback) {
+  // get a specific public object by its object id
+  // app_config needs to be set up for this and item to have been permissioned and tagged as public
+  if (!data_object_id) {callback({error:'No id sent.'});}
+  var url = '/v1/pdb/'+data_object_id;
+
+  freezer_restricted.connect.read(url, options, callback);
+}
 freezr.db.publicquery = function(callback, options) {
   // options can be: app_name, skip, count, user_id
   if (!options) options = {};
   var url = '/v1/pdbq';
   freezer_restricted.connect.send(url, JSON.stringify(options), callback, 'POST', 'application/json');
 }
+
 freezr.db.updateFileList = function(callback, folder_name) {
   // This is for developers mainly. If files have been added to a folder manually, this function reads all the files and records them in the db
   //app.get('/v1/developer/fileListUpdate/:app_name/:source_app_code/:folder_name', userDataAccessRights, app_hdlr.updateFileDb);
@@ -160,6 +161,7 @@ freezr.perms.setObjectAccess = function(callback, permission_name, data_object_i
         // can have one of:  'shared_with_group':'logged_in' or 'public' or 'shared_with_user':a user id  
         // 'requestee_app': app_name (defaults to self)
         // collection: defaults to first in list
+        // make_accessible (four public items, this is always true) - for others, this makes it accessible in a separate searchable collection (accessibles) so it can be more easily combined with otehr data sets searched
        }
       }
   if (!options.action) {options.action = "grant";}
@@ -493,6 +495,7 @@ freezer_restricted.permissions= {};
 
   }
   freezer_restricted.menu.resetDialogueBox = function(isAdminPage) {
+    console.log("resetting Dialogue box")
     if (document.getElementById('freezer_dialogueInnerText')) document.getElementById('freezer_dialogueInnerText').innerHTML= '<br/><div align="center">.<img src="'+(freezr.app.isWebBased? "/app_files/info.freezr.public/static/ajaxloaderBig.gif": "./freezrPublic/static/ajaxloaderBig.gif")+'"/></div>';
     var dialogueEl = document.getElementById('freezer_dialogueOuter');
     if (dialogueEl) dialogueEl.style.display="block";
@@ -504,13 +507,15 @@ freezer_restricted.permissions= {};
   }
   freezer_restricted.menu.addLoginInfoToDialogue = function(aDivName) {
     var innerElText = document.getElementById(aDivName);
-    innerElText.innerHTML = "<div class='freezer_dialogue_topTitle'>"+(freezr_app_display_name? freezr_app_display_name:freezr_app_name)+"</div>";
-    innerElText.innerHTML+= (freezr_app_version?("<div>App version: "+freezr_app_version+"</div>"):"" )
-    innerElText.innerHTML+= (freezr_user_id && freezr_server_address)? ("<i>Logged in as"+(freezr_user_is_admin? " admin ":" ")+"user: "+freezr_user_id+(freezr_server_address? (" on freezr server: "+freezr_server_address): "")+"</i>, version: "+freezr_server_version+"<br/>"):"<br/>You are not logged in";
-    if (!freezr.app.isWebBased && freezr_app_code){  
-        innerElText.innerHTML+= '<div align="center"><div class="freezer_butt" style="float:none; max-width:100px;" id="freezr_server_logout_butt">log out</div></div><br/>'
-        setTimeout(function() { document.getElementById("freezr_server_logout_butt").onclick= function() {freezr.utils.logout(); } },10);
-    }
+    if (innerElText) {
+        innerElText.innerHTML = "<div class='freezer_dialogue_topTitle'>"+(freezr_app_display_name? freezr_app_display_name:freezr_app_name)+"</div>";
+        innerElText.innerHTML+= (freezr_app_version?("<div>App version: "+freezr_app_version+"</div>"):"" )
+        innerElText.innerHTML+= (freezr_user_id && freezr_server_address)? ("<i>Logged in as"+(freezr_user_is_admin? " admin ":" ")+"user: "+freezr_user_id+(freezr_server_address? (" on freezr server: "+freezr_server_address): "")+"</i>, version: "+freezr_server_version+"<br/>"):"<br/>You are not logged in";
+        if (!freezr.app.isWebBased && freezr_app_code){  
+            innerElText.innerHTML+= '<div align="center"><div class="freezer_butt" style="float:none; max-width:100px;" id="freezr_server_logout_butt">log out</div></div><br/>'
+            setTimeout(function() { document.getElementById("freezr_server_logout_butt").onclick= function() {freezr.utils.logout(); } },10);
+        }
+    } else {console.log("INTERNAL ERROR - NO DIV AT addLoginInfoToDialogue FOR "+aDivName)}
   }
   freezer_restricted.menu.add_standAlonApp_login_dialogue = function(divToInsertInId) {
     var divToInsertIn = document.getElementById(divToInsertInId);
