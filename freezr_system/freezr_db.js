@@ -912,7 +912,7 @@ exports.check_query_permissions = function(user_id, queryJson, app_name, source_
 // OTHER / OAUTH
 
 exports.all_oauths = function (include_disabled, skip, count, callback) {
-    let sort = {};
+    var sort = {};
     skip = skip? skip: 0;
     count = count? count:ARBITRARY_COUNT;
     query = include_disabled? {}:{enabled:true}

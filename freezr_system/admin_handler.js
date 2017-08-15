@@ -434,9 +434,9 @@ exports.list_all_users = function (req, res) {
 };
 
 // o-auth
-let current_states = {};
+var current_states = {};
 const MAX_TIME = 30000;
-let clean_intervaler = null;
+var clean_intervaler = null;
 exports.list_all_oauths = function (req, res) {
     freezr_db.all_oauths(true, 0, null, function (err, results) {
         if (err) {
@@ -454,8 +454,8 @@ exports.list_all_oauths = function (req, res) {
 exports.oauth_perm_make = function (req, res) {
     console.log("New or updated oauth for source "+req.body.source+" type: "+req.body.type+" name: "+req.body.name);
     function register_auth_error(message) {return helpers.auth_failure("admin_handler.js",exports.version,"oauth_register",message)}
-    let collection = null; update=null;
-    let is_update = req.body._id? true:false; 
+    var collection = null; update=null;
+    var is_update = req.body._id? true:false; 
     async.waterfall([    
         // 1. Check if is admin
         function (cb) {
@@ -483,7 +483,7 @@ exports.oauth_perm_make = function (req, res) {
 
         // 3. if exists update and if not write
         function (results, cb) {
-            let params = {
+            var params = {
                 source: req.body.source,
                 type: req.body.type,
                 name: req.body.name,
@@ -522,8 +522,8 @@ exports.oauth_do = function (req, res) {
     if (req.params.dowhat == "get_new_state") {
         // Gets a new state to start a third party authorization process
         // example is v1/admin/oauth/public/get_new_state?source=dropbox&&name=freezr&&sender=http://myfreezr.com/first_registration&&type=file_env
-        let astate = null;
-        let counter = 0, MAX_COUNT = 100;
+        var astate = null;
+        var counter = 0, MAX_COUNT = 100;
         while (( counter == 0 || current_states[astate]) && counter++<MAX_COUNT) {
             astate = helpers.randomText(20);
         }
@@ -557,7 +557,7 @@ exports.oauth_do = function (req, res) {
         }
     } else if (req.params.dowhat == "validate_state") {
         // allows third parties to validate that they have been authroized
-        let state_params = current_states[req.session.oauth_state];
+        var state_params = current_states[req.session.oauth_state];
         async.waterfall([
             // 1. check oauth state
             function (cb) {
