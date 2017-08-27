@@ -434,7 +434,7 @@ module.exports = function(/*String*/input) {
 
 
         /**
-         * SF - passes file to 
+         * SF - passes file in real async
          *
          * @param targetPath Target location
          * @param overwrite If the file already exists at the target path, the file will be overwriten if this is true.

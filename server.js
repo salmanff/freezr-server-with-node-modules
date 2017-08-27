@@ -17,6 +17,7 @@ var fs = require('fs'),
     cookieSession = require('cookie-session'),
     session = require('express-session'),
     app = express();
+
 var db_main = require('./freezr_system/db_main.js'),
     admin_handler = require('./freezr_system/admin_handler.js'),
     account_handler = require('./freezr_system/account_handler.js'),

@@ -359,7 +359,7 @@ exports.putData = function (req, res){
                     console.log("SNBH - no file name in obejct id")
                 }
             }
-            console.log('recheck filename change here and record', new_file_name,collection_name,req.params.app_name.replace(/\./g,"_"))
+            //onsole.log('todo recheck filename change here and record', new_file_name,collection_name,req.params.app_name.replace(/\./g,"_"))
             freezr_db.app_db_collection_get(req.params.app_name.replace(/\./g,"_"), collection_name, cb);
         },
         function (theCollection, cb) {
@@ -758,11 +758,8 @@ exports.db_query = function (req, res){
     // get permissions and get list of users who granted okay and check field name is right
     // get field permissions and check again
 
-
     function app_err(message) {return helpers.app_data_error(exports.version, "db_query", req.params.requestor_app, message);}
     function app_auth_err(message) {return helpers.auth_failure("app_handler", exports.version, "db_query", message+" "+req.params.requestor_app);}
-
-
 
     async.waterfall([
         // 0 get app config
@@ -870,7 +867,6 @@ exports.db_query = function (req, res){
                                 // Note: Currently no field permissions in db_query
                                 usersWhoGrantedAppPermission.push({'_creator':allUserPermissions[i]._creator});
                             } 
-
                             /* else {
                                 helpers.warning("app_handler - "+req.params.requestor_app, exports.version, "error? - permission changed and no longer permitted for "+allUserPermissions[i]._creator)
                             }*/

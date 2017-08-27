@@ -1,5 +1,6 @@
-
 /* 
+freezr accounts allmydata_backup.js
+
 This functionality page is somewhat incomplete. 
 To add upload options:
 	- backup all collections seuentially
@@ -59,7 +60,7 @@ freezr.initPageScripts = function() {
 	dl.meta.app_name=freezr_app_name;
 	dl.meta.user=freezr_user_id;
 
-	freezr.db.getConfig(function(configReturn) {
+	freezr.utils.getConfig(function(configReturn) {
 		if (configReturn.error ) {
 			showWarning("Error connecting to server - try later.");
 			hideElments();
@@ -101,7 +102,7 @@ var retrieve_data = function() {
 		count:retrieve_COUNT,
 		query_params: {'_date_Modified':{'$lt':dl.collections[0].last_retrieved_date}} 
 	}
-	freezr.db.query(gotData, null, queryOptions)	
+	freezr.db.query(queryOptions, gotData)	
 }
 var gotData = function(returnJson) {
 	returnJson = freezr.utils.parse(returnJson);
@@ -227,6 +228,7 @@ var processNextFile = function() {
 }
 var transformRecord = null; 
 var existingPurls = [];
+/* Used for vulog
 transformRecord =  function(aRecord) {
 	if (!aRecord) return null;
 	if (!aRecord.url) return null
@@ -257,11 +259,12 @@ transformRecord =  function(aRecord) {
 	}
 	return aRecord;	
 };
+*/
 var askToProcessNextRecord = function() {
 	//onsole.log("dealing with rec"+uploader.current_record)
 	var noMoreCollections = false
 
-	while (!noMoreCollections && ++uploader.current_record >= uploader.file_content.collections[uploader.current_collection_num].data.length) {
+	while (!noMoreCollections && uploader.file_content.collections[uploader.current_collection_num] && uploader.file_content.collections[uploader.current_collection_num].data && ++uploader.current_record >= uploader.file_content.collections[uploader.current_collection_num].data.length) {
 		if (++uploader.current_collection_num >= uploader.file_content.collections.length) noMoreCollections=true;
 		uploader.current_record=0;
 	}
@@ -270,6 +273,7 @@ var askToProcessNextRecord = function() {
 	} else {
 
 		var thisRecord = uploader.file_content.collections[uploader.current_collection_num].data[uploader.current_record];
+		
 		if (thisRecord && transformRecord) {
 			uploader.file_content.collections[uploader.current_collection_num].data[uploader.current_record] = transformRecord(thisRecord);
 			thisRecord = uploader.file_content.collections[uploader.current_collection_num].data[uploader.current_record];
@@ -311,7 +315,8 @@ var processNextRecord = function() {
 			var uploadOptions = {
 				updateRecord: (uploader.options.useNewIds? false: true), 
 				data_object_id: (uploader.options.useNewIds? null:thisRecord._id+""),
-				restoreRecord:true
+				restoreRecord:true,
+				collection : uploader.file_content.collections[uploader.current_collection_num].name
 			}
 			if (dl.meta.app_config.collections && dl.meta.app_config.collections[uploader.file_content.collections[uploader.current_collection_num].name] && dl.meta.app_config.collections[uploader.file_content.collections[uploader.current_collection_num].name].make_data_id) {
 			} else {
@@ -320,18 +325,22 @@ var processNextRecord = function() {
 	
 			//onsole.log("uploading "+thisRecord.url+" with options "+JSON.stringify(uploadOptions) )
 	
-			freezr.db.write (thisRecord, function (returnData) {
-				returnData = freezr.utils.parse(returnData);
-				if (returnData.error) {
-					document.getElementById("err_nums").innerHTML= "Errors uploading in total of "+(++uploader.records_erred)+" records."
-					addStatus("error uploading a record "+returnData.error+" - "+(returnData.message? returnData.message: "unknown cause") +".<br/>")
-					console.log("err uploading "+JSON.stringify(returnData) )
-				} else {
-					if (returnData.confirmed_fields._updatedRecord) uploader.records_updated+=1;
-					document.getElementById("upload_nums").innerHTML= "Total of "+(++uploader.records_uploaded)+" have been uploaded"+(uploader.records_updated?(", of which "+uploader.records_updated+" were updates of existing records."):".")
+			freezr.db.write (
+				thisRecord, 
+				uploadOptions, 
+				function (returnData) {
+					returnData = freezr.utils.parse(returnData);
+					if (returnData.error) {
+						document.getElementById("err_nums").innerHTML= "Errors uploading in total of "+(++uploader.records_erred)+" records."
+						addStatus("error uploading a record "+returnData.error+" - "+(returnData.message? returnData.message: "unknown cause") +".<br/>")
+						console.log("err uploading "+JSON.stringify(returnData) )
+					} else {
+						if (returnData.confirmed_fields._updatedRecord) uploader.records_updated+=1;
+						document.getElementById("upload_nums").innerHTML= "Total of "+(++uploader.records_uploaded)+" have been uploaded"+(uploader.records_updated?(", of which "+uploader.records_updated+" were updates of existing records."):".")
+					}
+					askToProcessNextRecord();
 				}
-				askToProcessNextRecord();
-			}, uploader.file_content.collections[uploader.current_collection_num].name, uploadOptions );
+			);
 		} else {
 			askToProcessNextRecord();
 		}

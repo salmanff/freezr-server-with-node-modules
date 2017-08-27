@@ -12,10 +12,10 @@ const USER_DIRS = ["userfiles", "userapps", "backups"];
 
 exports.generateAdminPage = function (req, res) {
     console.log("generateAdminPage "+req.url+" - "+req.params.sub_page)
-    console.log("??? req.headers.referer.split(':')[0]"+req.headers.referer);
-    console.log("??? req.secure "+req.secure)
-    console.log("??? req.protocol"+req.protocol)
-    console.log("To see how protocol is determined")
+    // todo - distibguish http & https
+    //onsole.log("??? req.headers.referer.split(':')[0]"+req.headers.referer);
+    //console.log("??? req.secure "+req.secure)
+    //onsole.log("??? req.protocol"+req.protocol)
     var initial_query = '', script_files=null; css_files= null;  page_title= null, initial_query_func= null, page_url = null, other_variables=null;
     var isPublicPage = helpers.startsWith(req.url,"/admin/public")
     if (!isPublicPage && !req.params.sub_page) req.params.sub_page = "home"
@@ -76,7 +76,7 @@ exports.generateAdminPage = function (req, res) {
             other_variables = "var startup_errors = PageNotFound";
             break;            
     }
-    console.log(req.connection.encrypted?" encrypted": "not encrypted");
+    
     var options = {
         page_title: page_title? page_title: "Admin "+req.params.sub_page.replace('_',' ')+" (Freezr)",
         css_files: css_files,

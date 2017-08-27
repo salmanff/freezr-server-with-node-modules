@@ -1,4 +1,8 @@
 
+/*  firstSetUp.css */
+.freezr_hiders {
+    display:none;
+}
 .bigText {
     font-size: 20px;
     margin-bottom: 5px;

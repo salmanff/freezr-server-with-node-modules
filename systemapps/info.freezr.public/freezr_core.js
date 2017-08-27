@@ -1,5 +1,4 @@
-
-/* Core freezr API - v0.0.1 - 2016
+/* Core freezr API - v0.0.11 - 2017
 
 The following variables need to have been declared in index.html
     freezr_app_name, freezr_app_code, freezr_user_id, freezr_user_is_admin
@@ -29,16 +28,16 @@ The following variables need to have been declared in index.html
   var freezr_app_version = freezr_app_version? freezr_app_version:"n/a";
   var freezr_server_version = freezr_server_version? freezr_server_version:"n/a";
 // db Functions - data base related functions - to read or write 
-freezr.db.write = function(data, callback, collection, options) {
+freezr.db.write = function(data, options, callback) {
   // write to the database
-  // options can be: updateRecord, data_object_id (needed for updateRecord), restoreRecord, confirm_return_fields
+  // options include collection, updateRecord, data_object_id (needed for updateRecord), restoreRecord, confirm_return_fields
 
   if (!data) {callback({"error":"No data sent."});}
 
   var contentType='application/json';
   var postData= JSON.stringify({'data':data, 'options':options});
+  var collection =  (options && options.collection)? options.collection:"main";
 
-  if (!collection) collection = "main";
   var url= "/v1/db/write/"+freezr_app_name+"/"+freezr_app_code+"/"+collection
 
   if (!callback) callback = function(aJson) {console.log(JSON.stringify(aJson)) };
@@ -46,52 +45,58 @@ freezr.db.write = function(data, callback, collection, options) {
   //onsole.log("posting to url "+url+" postdata "+JSON.stringify(postData))
   freezer_restricted.connect.send(url, postData, callback, "PUT", contentType);
 };
-freezr.db.update = function(data, callback, collection) {
-  // simple record update, assuming data has a ._id object
-  if (!data) {callback({"error":"No data sent."});}
-  if (!data._id) {callback({"error":"No _id to update."});}
-  freezr.db.write(data, callback, collection, {'updateRecord':true, "data_object_id":data._id})
-};
-freezr.db.upload = function(file, callback, data, options) {
+freezr.db.upload = function(file, options, callback ) {
   // upload a file and record it in the database
-  // options can be: updateRecord
+  // options can be: data (a json of data related to file) and updateRecord
   // and file specific ones: targetFolder, fileName, fileOverWrite
-  // for files uploaded, colelction is always "files"§
+  // For files uploaded, colelction is always "files"
 
   var url= "/v1/db/upload/"+freezr_app_name+"/"+freezr_app_code;  
   var uploadData = new FormData();
-    // file = document.getElementById('app_zipfile2').fileInput.files[0];
   if (file) {uploadData.append('file', file); /*onsole.log("Sending file1");*/}
-  if (data) uploadData.append("data", JSON.stringify(data));
+  if (options && options.data) {
+    uploadData.append("data", JSON.stringify(data));
+    delete options.data;
+  }
   if (options) uploadData.append("options", JSON.stringify(options));
   
   freezer_restricted.connect.send(url, uploadData, callback, "PUT", null);
 };
-freezr.db.getById = function(data_object_id, callback, collection_name, permission_name, options) {
+freezr.db.getById = function(data_object_id, options, callback ) {
   // get a specific object by object id
-  // app_config needs to be set up for this
+  // options are collection_name, permission_name
   if (!data_object_id) {callback({"error":"No id sent."});}
-  var requestee_app = (!options || !options.requestee_app)? freezr_app_name: options.requestee_app;
-  if (!collection_name) collection_name = "main";
-  if(!permission_name) permission_name="me";
+  var requestee_app   = (!options || !options.requestee_app)? freezr_app_name: options.requestee_app;
+  var collection_name = (options && options.collection_name)? options.collection_name : "main";
+  var permission_name = (options && options.permission_name)? options.permission_name : "me";
   var url = '/v1/db/getbyid/'+permission_name+"/"+collection_name+"/"+freezr_app_name+'/'+freezr_app_code+'/'+requestee_app+'/'+data_object_id;
-  //onsole.log("getting url ",url)
-  freezer_restricted.connect.read(url, options, callback);
+  freezer_restricted.connect.read(url, null, callback);
 }
-freezr.db.query = function(callback, permission_name, options) {
-  // 
+freezr.db.query = function(options, callback) {
+  // queries db 
   // options are:
-    //  field_value (necessary for field_permissions and folder)
+    // permission_name
+    // field_name, field_value (necessary for field_permissions and folder)
     // collection - default is to use the first in list for object_delegate
     // Note:  permission will indicate requestee_app if it is different from freezr_app_name
-    // query_params is a list of ...
+    // query_params is any list of query parameters
 
   if (!options) options = {};
-
-  var url = '/v1/db/query/'+freezr_app_name+'/'+freezr_app_code+'/'+freezr_app_name+(permission_name?('/'+permission_name):"");
+  var permission_string = options.permission_name? ('/'+options.permission_name):""
+  var url = '/v1/db/query/'+freezr_app_name+'/'+freezr_app_code+'/'+freezr_app_name+permission_string;
 
   freezer_restricted.connect.send(url, JSON.stringify(options), callback, 'POST', 'application/json');
 }
+freezr.db.update = function(data, options, callback) {
+  // simple record update, assuming data has a ._id object
+  // options can have collection
+  if (!data) {callback({"error":"No data sent."});}
+  if (!data._id) {callback({"error":"No _id to update."});}
+  if (!options) options = {};
+  options.updateRecord = true;
+  options.data_object_id = data._id;
+  freezr.db.write(data, options, callback )
+};
 freezr.db.getByPublicId = function(data_object_id, callback) {
   // get a specific public object by its object id
   // app_config needs to be set up for this and item to have been permissioned and tagged as public
@@ -100,29 +105,11 @@ freezr.db.getByPublicId = function(data_object_id, callback) {
 
   freezer_restricted.connect.read(url, options, callback);
 }
-freezr.db.publicquery = function(callback, options) {
+freezr.db.publicquery = function(options, callback) {
   // options can be: app_name, skip, count, user_id
   if (!options) options = {};
   var url = '/v1/pdbq';
   freezer_restricted.connect.send(url, JSON.stringify(options), callback, 'POST', 'application/json');
-}
-
-freezr.db.updateFileList = function(callback, folder_name) {
-  // This is for developers mainly. If files have been added to a folder manually, this function reads all the files and records them in the db
-  //app.get('/v1/developer/fileListUpdate/:app_name/:source_app_code/:folder_name', userDataAccessRights, app_hdlr.updateFileDb);
-
-  var url = '/v1/developer/fileListUpdate/'+freezr_app_name+'/'+freezr_app_code+ (folder_name?'/'+folder_name:"");
-  //onsole.log("fileListUpdate Sending to "+url)
-  freezer_restricted.connect.read(url, null, callback);
-}
-freezr.db.getConfig = function(callback) {
-  // This is for developers mainly. I retrieves the app_config file and the list of collections which haev been used
-  //app.get('/v1/developer/config/:app_name/:source_app_code',userDataAccessRights, app_handler.getConfig);
-  // it returns: {'app_config':app_config, 'collection_names':collection_names}, where collection_names are the collection_names actually used, whether they appear in the app_config or not.
-
-  var url = '/v1/developer/config/'+freezr_app_name+'/'+freezr_app_code;
-  //onsole.log("fileListUpdate Sending to "+url)
-  freezer_restricted.connect.read(url, null, callback);
 }
 
 
@@ -187,7 +174,23 @@ freezr.perms.allFieldsIHaveAccessTo = function(callback, options ) {
 
 
 // UTILITY Functions
-freezr.utils.ping = function(callback, app_name) {
+freezr.utils.updateFileList = function(folder_name, callback) {// Currently NOT FUNCTIONAL
+  // This is for developers mainly. If files have been added to a folder manually, this function reads all the files and records them in the db
+  //app.get('/v1/developer/fileListUpdate/:app_name/:source_app_code/:folder_name', userDataAccessRights, app_hdlr.updateFileDb);
+  var url = '/v1/developer/fileListUpdate/'+freezr_app_name+'/'+freezr_app_code+ (folder_name?'/'+folder_name:"");
+  //onsole.log("fileListUpdate Sending to "+url)
+  freezer_restricted.connect.read(url, null, callback);
+}
+freezr.utils.getConfig = function(callback) {
+  // This is for developers mainly. I retrieves the app_config file and the list of collections which haev been used
+  //app.get('/v1/developer/config/:app_name/:source_app_code',userDataAccessRights, app_handler.getConfig);
+  // it returns: {'app_config':app_config, 'collection_names':collection_names}, where collection_names are the collection_names actually used, whether they appear in the app_config or not.
+
+  var url = '/v1/developer/config/'+freezr_app_name+'/'+freezr_app_code;
+  //onsole.log("fileListUpdate Sending to "+url)
+  freezer_restricted.connect.read(url, null, callback);
+}
+freezr.utils.ping = function(app_name, callback) {
   // pings freezr to get back logged in data
   var url = '/v1/account/ping';
   if (app_name) url+="/"+app_name;
@@ -213,7 +216,7 @@ freezr.utils.logout = function() {
     });
   }
 }
-freezr.utils.getHtml = function(part_path, callback, app_name) {
+freezr.utils.getHtml = function(part_path, app_name, callback) {
   if (!app_name) app_name = freezr_app_name;
   if (!part_path.endsWith(".html") && !part_path.endsWith(".htm")) {
     callback("error - can only get html files")
@@ -225,18 +228,20 @@ freezr.utils.getHtml = function(part_path, callback, app_name) {
 freezr.utils.getAllAppList = function(callback) {
   freezer_restricted.connect.read('/account/v1/app_list.json', null, callback)
 }
-freezr.utils.filePathFromName = function(fileName, user_id, permission_name, requestee_app) {
+freezr.utils.filePathFromName = function(fileName, options) {
+  // options are permission_name, requestee_app AND user_id
   // returns the full file path based on the name of a file so it can be referred to in html. (fileName can include subfolders in user directory)
-  if (!user_id) user_id = freezr_user_id;
+  var user_id = (options && options.user_id)? options.user_id : freezr_user_id;
   if (! fileName ) return null
-  else return freezr.utils.filePathFromId(user_id +"/"+fileName,requestee_app,permission_name) 
+  else return freezr.utils.filePathFromId(user_id +"/"+fileName, options) 
 }
-freezr.utils.filePathFromId = function(fileId, permission_name, requestee_app) {
+freezr.utils.filePathFromId = function(fileId, options) {
   // returns the full file path based on the file id so it can be referred to in html.
-  if(!permission_name) permission_name="me";
-  if(!requestee_app) requestee_app=freezr_app_name;
+  // options are permission_name, requestee_app
+  if (!fileId) return null;
+  var permission_name = options.permission_name? options.permission_name : "me";
+  var requestee_app   = options.requestee_app ?  options.requestee_app   : freezr_app_name;
   if (freezr.utils.startsWith(fileId,"/")) fileId = fileId.slice(1);
-  //onsole.log("geeting "+unescape(fileId));
   return "/v1/userfiles/"+permission_name+"/files/"+freezr_app_name+"/"+ freezr_app_code +"/"+requestee_app+"/"+fileId;
 }
 freezr.utils.parse = function(dataString) {
@@ -576,7 +581,7 @@ freezer_restricted.permissions= {};
     document.getElementById('freezr_server_pingprelogin_butt').onclick= function (evt) {
       freezr_server_address = document.getElementById('freezr_server_name_input').innerText;
       if (freezr_server_address.slice(freezr_server_address.length-1)=="/")  freezr_server_address = freezr_server_address.slice(0,freezr_server_address.length-1);
-      freezr.utils.ping(function(resp) {
+      freezr.utils.ping(null, function(resp) {
           resp = freezr.utils.parse(resp);
           if(resp.error) {
             document.getElementById("freezr_server_server_name_area").innerHTML="The freezr is not available. Please try later.";

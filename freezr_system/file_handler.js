@@ -42,7 +42,7 @@ exports.init_custom_env = function(env_params, callback) {
                 custom_environment =  require(exports.systemPathTo('freezr_system/environment/'+file_env_name));
             } catch (e) {
                 env_okay = false;     
-                console.log("geot err here")
+                console.log("got err in init_custom_env")
                 callback(helpers.state_error("file_handler",exports.version,"init_custom_env", ("error reading file "+file_env_name+" - "+e.message), "error_in_custom_file") )
             }
             if (env_okay) custom_environment.init_custom_env(env_params, callback);
@@ -149,9 +149,9 @@ exports.extractZippedAppFiles = function(zipfile, app_name, originalname, env_pa
     if (useCustomEnvironment(env_params, app_name) ) {
         custom_environment.extractZippedAppFiles(zipfile, app_name, originalname, env_params, callback);
     } else {
+        var AdmZip = require('./forked_modules/adm-zip/adm-zip.js');
 
-        try { 
-            var AdmZip = require('adm-zip');
+        try {   
             var zip = new AdmZip(zipfile); //"zipfilesOfAppsInstalled/"+app_name);
             var app_path = exports.fullLocalPathToAppFiles(app_name, null)
 
@@ -197,7 +197,7 @@ exports.sendUserFile = function(res, partialUrl, env_params) {
     if (useCustomEnvironment(env_params, app_name) ) {
         custom_environment.sendUserFile(res, partialUrl, env_params);
     } else {
-        console.log("sendUserFile "+partialUrl)
+        //onsole.log("sendUserFile "+partialUrl)
         res.sendFile( exports.fullLocalPathToUserFiles(partialUrl, null) ) ;
     }
 }
@@ -257,7 +257,7 @@ exports.async_app_config = function(app_name, env_params, callback) {
     if (useCustomEnvironment(env_params, app_name)) {
         custom_environment.async_app_config(app_name, env_params, callback);
     } else if (!exports.appLocalFileExists(app_name, 'app_config.json', null)){
-        console.log("Missing app config for "+app_name)
+        //onsole.log("Missing app config for "+app_name)
         callback(null, null);
     } else {
         var returnJson= {}, err = null;
@@ -554,7 +554,7 @@ exports.load_data_html_and_page = function(res,options, env_params){
         } else {
             //onsole.log("got file content in file handler for ",options.app_name, options.page_url)
             if (options.queryresults){
-                console.log("queryresults:"+JSON.stringify(options.queryresults))
+                //onsole.log("queryresults:"+JSON.stringify(options.queryresults))
                 var Mustache = require('mustache');
                 options.page_html =  Mustache.render(html_content, options.queryresults); 
                 exports.load_page_html(res,options)

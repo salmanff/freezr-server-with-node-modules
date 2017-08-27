@@ -33,7 +33,7 @@ freezr.initPageScripts = function() {
 	dl.meta.app_name=freezr_app_name;
 	dl.meta.user=freezr_user_id;
 
-	freezr.db.getConfig(function(configReturn) {
+	freezr.utils.getConfig(function(configReturn) {
 		if (configReturn.error ) {
 			showWarning("Error connecting to server");
 		} else {
@@ -65,7 +65,9 @@ freezr.initPageScripts = function() {
 var getCollectionData = function () {
 	//onsole.log("to get next coll "+dl.meta.num_collections_retrieved+"-"+dl.meta.all_collection_names.length+" "+JSON.stringify(dl.meta));
 	if (dl.meta.num_collections_retrieved < dl.meta.all_collection_names.length) {
-		freezr.db.query(gotCollectionData, null, { collection:dl.meta.all_collection_names[dl.meta.num_collections_retrieved], count:retrieve_COUNT , skip:0 })
+		freezr.db.query(
+			{ collection:dl.meta.all_collection_names[dl.meta.num_collections_retrieved], count:retrieve_COUNT , skip:0 },
+			  gotCollectionData)
 	} else {
 		showCollectionData();
 	}
@@ -158,7 +160,7 @@ var change_collection = function() {
 	showCollectionData(document.getElementById("collection_names").value);
 }
 var retrieve_more = function() {
-	freezr.db.query(gotMoreData, null, { collection:dl.current_collection.name, count:retrieve_COUNT , skip:(dl.collections[dl.current_collection.num].data.length) })	
+	freezr.db.query({ collection:dl.current_collection.name, count:retrieve_COUNT , skip:(dl.collections[dl.current_collection.num].data.length) }, gotMoreData)	
 }
 var gotMoreData = function(returnJson) {
 	returnJson = freezr.utils.parse(returnJson);

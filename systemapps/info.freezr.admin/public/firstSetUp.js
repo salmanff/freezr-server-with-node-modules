@@ -68,6 +68,7 @@ freezr.initPageScripts = function() {
 
 
   let newOauth = parseFragments();
+  console.log("original url href "+window.location.href)
   if (newOauth && newOauth.access_token) {
     showMainSection('externalFs');
     tempParams.fs_token = newOauth.access_token;
@@ -182,7 +183,7 @@ var register = function () {
 var gotRegisterStatus = function(data) {
   var theEl = document.getElementById("freezer_dialogueInnerText");
   if (data) data = freezr.utils.parse(data);
-  //onsole.log("gotRegisterStatus "+JSON.stringify(data));
+  console.log("gotRegisterStatus "+JSON.stringify(data));
   if (!data) {
     freezr.utils.freezrMenuClose();
     showError("Could not connect to server");
@@ -198,7 +199,7 @@ var gotRegisterStatus = function(data) {
     theEl.appendChild(msgDiv2);
     showInstructions(data.freezrStatus);
   }
-      document.getElementById("click_register ").style.display="block";
+      document.getElementById("click_register").style.display="block";
       document.getElementById("loader").style.display="none";
 }
 
@@ -233,7 +234,7 @@ var populateErrorMessage = function (freezrServerStatus, initial){
     inner+= (initial? "Please review your External File System or Database for alternatives" : "Please try resubmitting credentials.");
     inner+= "<br/><br/>";
   }
-  inner+= freezrServerStatus.environment_mismatch? "There was a mismatch on environemnet paramaters":"";
+  inner+= freezrServerStatus.environment_mismatch? "There was a mismatch on environment paramaters":"";
   inner+= freezrServerStatus.can_write_to_system_folder? "": "There was a problem writing to the system folder.";
   inner+= (freezrServerStatus.other_errors && freezrServerStatus.other_errors.length>0)? ("Other issues"+freezrServerStatus.other_errors.join("<br/>")):"";
   

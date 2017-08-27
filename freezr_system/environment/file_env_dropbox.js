@@ -114,7 +114,7 @@ exports.writeTextToUserFile = function (folderPartPath, fileName, fileText, save
     	uploadparams.autorename = true;
 	}
 	dbx.filesUpload(uploadparams)
-	    .then(response => callback(null, response.name) )
+	    .then( response => callback(null, response.name) )
         .catch(function(error) {
           	var errparse = {};
           	if (error) errparse = JSON.parse(error.error);
@@ -175,6 +175,8 @@ exports.get_file_content = function(filePath, env_params, callback) {
 	      .catch(error => {
 	      	var errparse = JSON.parse(error.error);
 	      	if (errparse && errparse.error_summary && helpers.startsWith(errparse.error_summary, 'path/not_found') ){
+	      		console.log("errparse.error_summary")
+	      		console.log(errparse.error_summary)
 	      		FILE_CACHE[filePath] = {content: '', 'access_date' : new Date().getTime()};
 	      		callback(helpers.error("file_not_found","Could not get content for inexistant file at "+filePath) ,null)
 	      	} else {
@@ -190,7 +192,7 @@ exports.async_app_config = function (app_name, env_params, callback) {
 	exports.get_file_content(filePath, env_params, function(err, app_config) {
 		if (err) {
 			if(err.code =="file_not_found") {
-				// okay if missing
+				//onsole.log("okay if app config is  missing for "+app_name)
 				callback(null, null)
 			} else {
 				callback(helpers.app_config_error("NR", "file_env_dropbox:async_app_config", app_name,"Could not get contents of app_config for "+app_name));
@@ -221,7 +223,7 @@ var doParseConfig = function(app_name, app_config, callback) {
 	}
 }
 exports.extractZippedAppFiles = function(zipfile, app_name, originalname, env_params, callback){
-	var AdmZip = require('adm-zip');
+	var AdmZip = require('../forked_modules/adm-zip/adm-zip.js');
     var zip = new AdmZip(zipfile); //"zipfilesOfAppsInstalled/"+app_name);
 	var app_path = "app_files/"+app_name;
     var zipEntries = zip.getEntries(); // an array of ZipEntry records

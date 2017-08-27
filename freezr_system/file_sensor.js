@@ -8,7 +8,7 @@ var path = require('path'),
 
 const ILLEGAL_WORD_LIST = ['http','eval','setattribute'];
 const ALLOWED_APP_DIRECTORIES = ['static','public',('public'+path.sep+'static')]; // todo deprecate
-const ALLOWED_FILE_EXTS = [] //'png','jpg','jpeg','eot','ttf','woff','woff2'] 
+const ALLOWED_FILE_EXTS = ['json','png','jpg','jpeg','eot','ttf','woff','woff2'] 
 	// todo these should only be under static or make sure when reading files in load html that scripts are scripts and html's have html ending
 
 

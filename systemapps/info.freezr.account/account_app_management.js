@@ -76,7 +76,7 @@ var buttons = {
       if (!theEl || confirm("This app exists. Do you want to replace it with the uplaoded files?")) {
         freezer_restricted.menu.resetDialogueBox(true);
           freezer_restricted.connect.send(url, uploadData, function(returndata) {
-            var d = JSON.parse(returndata);
+            var d = freezr.utils.parse(returndata);
             if (d.err) {
               document.getElementById("freezer_dialogueInnerText").innerHTML = "<br/>"+JSON.stringify(d.err);
             } else{
@@ -122,7 +122,7 @@ var buttons = {
           } else if (theData.err || theData.error) {
             theEl.innerHTML = "ERROR RETRIEVING APP LIST";
           } else {
-            freezr.utils.getHtml("app_mgmt_list.html", function(theHtml) {
+            freezr.utils.getHtml("app_mgmt_list.html", null, function(theHtml) {
               theEl.innerHTML = Mustache.to_html( theHtml,theData );
               var imglist = document.getElementsByClassName("logo_img");
               var imglistener = function(evt){
@@ -150,7 +150,7 @@ var buttons = {
 
 }
 var ShowAppUploadErrors = function (theData,callFwd) {
-  freezr.utils.getHtml("uploaderrors.html", function(theHtml) {
+  freezr.utils.getHtml("uploaderrors.html", null, function(theHtml) {
     var theEl = document.getElementById("freezer_dialogueInnerText");
     theEl.innerHTML = Mustache.to_html( theHtml,theData );
     if (callFwd) callFwd();
