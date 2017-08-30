@@ -98,7 +98,7 @@ var servePublicAppFile = function(req, res, next) {
     if (fileUrl.indexOf('?')>1) { fileUrl = fileUrl.substr(0,fileUrl.indexOf('?'));} // solving slight problem when node.js adds a query param to some fetches
 
     if (fileUrl.slice(1)=="favicon.ico") {
-        res.sendFile(file_handler.systemPathTo("app_files/info.freezr.public/static/" + fileUrl));
+        res.sendFile(file_handler.systemPathTo("systemapps/info.freezr.public/static/" + fileUrl));
     } else {
         file_handler.sendAppFile(res, fileUrl, freezr_environment);
     }
@@ -261,7 +261,7 @@ function addVersionNumber(req, res, next) {
                 if (err || !results.freezr_environment) {                     
                     helpers.send_auth_failure(res, "admin_handler", exports.version,"first_registration",err.message, err.errCode); 
                 } else {
-                    console.log("End of process of 1st reg "+JSON.stringify(results))
+                    helpers.log (null,"End of process of 1st reg "+JSON.stringify(results))
                     freezr_environment = results.freezr_environment
                     file_handler.resetFreezrEnvironment(freezr_environment);
                     freezrStatus = results.fstatus;
@@ -427,7 +427,11 @@ async.waterfall([
             freezrStatus.can_write_to_user_folder = err? false:true;
             freezrStatus.fundamentals_okay = getAllOkayStatus(freezrStatus);
             file_handler.resetFreezrEnvironment(freezr_environment);
-            cb(null);
+            if (freezr_environment && freezr_environment.userDirParams && freezr_environment.userDirParams.name) {
+                file_handler.init_custom_env(freezr_environment, cb);
+            } else {
+                cb(null);
+            }
         })
     }], 
     function (err) {
@@ -440,7 +444,7 @@ async.waterfall([
             helpers.warning("server.js", exports.version, "startup_waterfall", "STARTUP ERR "+JSON.stringify(err) )        
         }    
         app.listen(freezr_environment.port) //, freezr_environment.ipaddress)
-        console.log("Going to listen on port "+freezr_environment.port)
+        helpers.log (null,"Going to listen on port "+freezr_environment.port)
     }
 )
 

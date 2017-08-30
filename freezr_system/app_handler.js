@@ -41,7 +41,7 @@ exports.generateSystemDataPage = function (req, res) {
 
 exports.generatePage = function (req, res) { 
     // '/apps/:app_name' and '/apps/:app_name/:page' (and generateDataPage above)
-    console.log("generating page for app "+req.params.app_name+" page "+req.params.page);
+    helpers.log (req,"generating page for app "+req.params.app_name+" page "+req.params.page);
 
     if (req.params.sysConfig === undefined) {
         file_handler.async_app_config(req.params.app_name, req.freezr_environment, function(err, app_config){
@@ -229,7 +229,7 @@ var generatePageWithAppConfig = function (req, res, app_config) {
 // database operations
 exports.putData = function (req, res){
     // /v1/app_data/:app_name/:source_app_code/:collection
-    console.log("putData at "+req.url); //+"body:"+JSON.stringify((req.body && req.body.data)? req.body.data:" none"));
+    helpers.log (req,"putData at "+req.url); //+"body:"+JSON.stringify((req.body && req.body.data)? req.body.data:" none"));
 
     // Initialize variables
         if (req.body.options && (typeof req.body.options == "string")) req.body.options = JSON.parse(req.body.options); // needed when upload file
@@ -743,7 +743,7 @@ exports.getDataObject= function(req, res) {
     });
 }
 exports.db_query = function (req, res){
-    console.log("db_query: "+req.url)
+    helpers.log (req,"db_query: "+req.url)
     //app.post('/v1/db/query/:requestor_app/:source_app_code/:requestee_app', userDataAccessRights, app_hdlr.db_query); 
     //app.post('/v1/db/query/:requestor_app/:source_app_code/:requestee_app/:permission_name', userDataAccessRights, app_hdlr.db_query); 
     // todo - Simplify so that if ownrecord, just looks up the db and if not, then returns the data_record in the accessibles_db. (Figure out what to do in case of field and folder permissions - potentially separate into separate functions)

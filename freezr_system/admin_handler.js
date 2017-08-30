@@ -11,7 +11,7 @@ var helpers = require('./helpers.js'),
 const USER_DIRS = ["userfiles", "userapps", "backups"];
 
 exports.generateAdminPage = function (req, res) {
-    console.log("generateAdminPage "+req.url+" - "+req.params.sub_page)
+    helpers.log(req, "generateAdminPage "+req.url+" - "+req.params.sub_page)
     // todo - distibguish http & https
     //onsole.log("??? req.headers.referer.split(':')[0]"+req.headers.referer);
     //console.log("??? req.secure "+req.secure)
@@ -184,7 +184,7 @@ validExternalFsParams = function(params){
 } 
 
 exports.first_registration = function (req, callback) {
-    console.log("first time register (or resetting of parameters) for user :"+req.body.user_id);
+    helpers.log (req,"first time register (or resetting of parameters) for user :"+req.body.user_id);
     var uid = freezr_db.user_id_from_user_input(req.body.user_id);
     var isAdmin = true;
     var register_type = "setUp";
@@ -452,7 +452,7 @@ exports.list_all_oauths = function (req, res) {
     });
 };
 exports.oauth_perm_make = function (req, res) {
-    console.log("New or updated oauth for source "+req.body.source+" type: "+req.body.type+" name: "+req.body.name);
+    helpers.log (req,"New or updated oauth for source "+req.body.source+" type: "+req.body.type+" name: "+req.body.name);
     function register_auth_error(message) {return helpers.auth_failure("admin_handler.js",exports.version,"oauth_register",message)}
     var collection = null; update=null;
     var is_update = req.body._id? true:false; 
@@ -518,7 +518,7 @@ exports.oauth_perm_make = function (req, res) {
 exports.oauth_do = function (req, res) {
     // app.get('/v1/admin/oauth/public/:dowhat', addVersionNumber, admin_handler.oauth_do);
     // dowhat can be: get_new_state or validate_state
-    console.log("oauth_do "+req.params.dowhat)
+    helpers.log (req,"oauth_do "+req.params.dowhat)
     if (req.params.dowhat == "get_new_state") {
         // Gets a new state to start a third party authorization process
         // example is v1/admin/oauth/public/get_new_state?source=dropbox&&name=freezr&&sender=http://myfreezr.com/first_registration&&type=file_env
@@ -588,7 +588,7 @@ exports.oauth_do = function (req, res) {
             },
             // 2. ...
             function (cb) {
-                console.log("todo now - record the state in the db")
+                helpers.log (req,"todo now - record the state in the db")
                 cb(null)
             },
             function (cb) {
@@ -626,7 +626,7 @@ var get_auth_permission = function (params, callback) {
 }
 
 var clean_unused_states = function () {
-    console.log("Clean out old states - todo")
+    helpers.log (req,"Clean out old states - todo")
 }
 var checkIsCorrectFirstUser = function(user_id,to_check_password,req, callback) {
     if (req.session.logged_in_user_id != user_id) {

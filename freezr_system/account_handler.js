@@ -11,7 +11,7 @@ var helpers = require('./helpers.js'),
 exports.generate_login_page = function (req, res) {
     // '/account/login' or '/account/applogin/login/:app_name'
 
-    console.log("generate_login_page accounts login with url "+JSON.stringify(req.url)+" params are "+JSON.stringify(req.params)+" is set up? "+req.freezr_is_setup);
+    helpers.log (req,"generate_login_page accounts login with url "+JSON.stringify(req.url)+" params are "+JSON.stringify(req.params)+" is set up? "+req.freezr_is_setup);
 
     if (req.session && req.session.logged_in_user_id && req.url=='/account/login' && req.freezr_is_setup)  { // last term relevant only if freezr preferences file has been deleted
         res.redirect("/account/home");
@@ -72,7 +72,7 @@ exports.generate_applogin_results = function (req, res) {
 exports.generateAccountPage = function (req, res) {
     // /account/:sub_page
     // '/account/:sub_page/:to_do/:app_name'
-    console.log("generateAccountPage: "+req.url+" "+req.params.sub_page+JSON.stringify(req.params));
+    helpers.log (req,"generateAccountPage: "+req.url+" "+req.params.sub_page+JSON.stringify(req.params));
     if (!req.params.sub_page) {req.params.sub_page="home"} else {req.params.sub_page= req.params.sub_page.toLowerCase();}
     
     if (req.params.to_do) req.params.sub_page = req.params.sub_page + '_'+ req.params.to_do
@@ -328,7 +328,7 @@ exports.list_all_user_apps = function (req, res) {
 };
 exports.add_uploaded_app_zip_file = function (req, res) {
     // app.put ('/v1/account/upload_app_zipfile.json', requireUserRights, uploadAppZipFile); 
-    console.log("add_uploaded_app_zip_file body") //+JSON.stringify(req.body));
+    helpers.log (req,"add_uploaded_app_zip_file body") //+JSON.stringify(req.body));
 
     var app_name, app_path, app_version=null; app_display_name=null;
     var flags = new Flags({});
@@ -609,7 +609,7 @@ exports.appMgmtActions  = function (req,res) /* deleteApp updateApp */ {
 // PERMISSSIONS
 exports.changeNamedPermissions = function(req, res) {
     //app.put ('/v1/permissions/change/:requestee_app/:source_app_code', userDataAccessRights, account_handler.changePermissions); 
-    console.log("changePermissions "+JSON.stringify(req.body));
+    helpers.log (req,"changePermissions "+JSON.stringify(req.body));
     
     if (req.body.changeList && req.body.changeList.length==1 && req.body.changeList[0].permission_name && req.body.changeList[0].action && req.body.changeList[0].permission_object) {
         var permission_name = req.body.changeList[0].permission_name;

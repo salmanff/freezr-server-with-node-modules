@@ -6,6 +6,10 @@ var async = require('async'),
     flags_obj = require("./flags_obj.js");
 
 
+exports.log = function(req, message) {
+    console.log((new Date())+" - "+(req? (req.session.logged_in_user_id+" - "+req.ip): " server ")+" - "+message)
+}
+
 // Valid names
     exports.system_apps = ["info.freezr.account","info.freezr.admin","info.freezr.public","info.freezr.permissions","info.freezr.posts"];
     exports.permitted_types = { 
