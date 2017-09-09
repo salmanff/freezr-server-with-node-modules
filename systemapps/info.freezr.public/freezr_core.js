@@ -119,7 +119,7 @@ freezr.perms.getAllAppPermissions = function(callback) {
   var url = '/v1/permissions/getall/'+freezr_app_name+'/'+freezr_app_code;
   freezer_restricted.connect.read(url, null, callback);
 }
-freezr.perms.setFieldAccess = function(callback, permission_name, options) {
+freezr.perms.setFieldAccess = function(options, callback) {
   // todo - Currently not functional
   // can give specific people access to fields with specific values - eg myHusband can be given to all "album" fields whose value is "ourVacationAlbum2014"
   // field name and value are needed for field_delegate type permissions but unnecessary for foler_delegate permissions
@@ -138,7 +138,7 @@ freezr.perms.setFieldAccess = function(callback, permission_name, options) {
 
   freezer_restricted.connect.write(url, options, callback);
 }
-freezr.perms.setObjectAccess = function(callback, permission_name, data_object_id, options) {
+freezr.perms.setObjectAccess = function(permission_name, data_object_id, options, callback) {
   // gives specific people access to a specific object
   // permission_name is the permission_name under which the field is being  
 
@@ -156,14 +156,14 @@ freezr.perms.setObjectAccess = function(callback, permission_name, data_object_i
 
   freezer_restricted.connect.write(url, options, callback);
 }
-freezr.perms.listOfFieldsIvegrantedAccessTo = function(callback, options) {
+freezr.perms.listOfFieldsIvegrantedAccessTo = function(options, callback) {
   // todo - Currently not functional
   // returns list of folders (or field names) the app has given access to on my behalf.
   // options: permission_name, collection, field_name, field_value, shared_with_group, shared_with_user, granted
   var url = '/v1/permissions/getfieldperms/ihavegranted/'+freezr_app_name+'/'+freezr_app_code+'/';
   freezer_restricted.connect.read(url, options, callback);
 }
-freezr.perms.allFieldsIHaveAccessTo = function(callback, options ) {
+freezr.perms.allFieldsIHaveAccessTo = function(options , callback) {
   // todo - Currently not functional
   // returns list of folders (or field names) user has been given access to (excluding subfolders) by other users
   // options: permission_name, collection, requestee_app, action,  _creator, 
@@ -190,10 +190,10 @@ freezr.utils.getConfig = function(callback) {
   //onsole.log("fileListUpdate Sending to "+url)
   freezer_restricted.connect.read(url, null, callback);
 }
-freezr.utils.ping = function(app_name, callback) {
+freezr.utils.ping = function(callback) {
   // pings freezr to get back logged in data
   var url = '/v1/account/ping';
-  if (app_name) url+="/"+app_name;
+  //if (app_name) url+="/"+app_name;
   freezer_restricted.connect.read(url, null, callback);
 }
 freezr.utils.logout = function() {
@@ -217,6 +217,7 @@ freezr.utils.logout = function() {
   }
 }
 freezr.utils.getHtml = function(part_path, app_name, callback) {
+  // Gets an html file on the freezr server
   if (!app_name) app_name = freezr_app_name;
   if (!part_path.endsWith(".html") && !part_path.endsWith(".htm")) {
     callback("error - can only get html files")
@@ -581,7 +582,7 @@ freezer_restricted.permissions= {};
     document.getElementById('freezr_server_pingprelogin_butt').onclick= function (evt) {
       freezr_server_address = document.getElementById('freezr_server_name_input').innerText;
       if (freezr_server_address.slice(freezr_server_address.length-1)=="/")  freezr_server_address = freezr_server_address.slice(0,freezr_server_address.length-1);
-      freezr.utils.ping(null, function(resp) {
+      freezr.utils.ping(function(resp) {
           resp = freezr.utils.parse(resp);
           if(resp.error) {
             document.getElementById("freezr_server_server_name_area").innerHTML="The freezr is not available. Please try later.";

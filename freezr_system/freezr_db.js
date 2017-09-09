@@ -485,7 +485,7 @@ exports.all_user_apps = function (user_id, sort_field, sort_desc, skip, count, c
                     .skip(skip)
                     .toArray(callback);
         } else {
-            callback(helpers.state_error("freezr_db", exports.version, "all_user_apps", exports.error("missing_db","The db is not running.") ) )
+            callback(helpers.state_error("freezr_db", exports.version, "all_user_apps", helpers.error("missing_db","The db is not running.") ) )
         }
     }
 };

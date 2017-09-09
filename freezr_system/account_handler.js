@@ -11,7 +11,7 @@ var helpers = require('./helpers.js'),
 exports.generate_login_page = function (req, res) {
     // '/account/login' or '/account/applogin/login/:app_name'
 
-    helpers.log (req,"generate_login_page accounts login with url "+JSON.stringify(req.url)+" params are "+JSON.stringify(req.params)+" is set up? "+req.freezr_is_setup);
+    helpers.log (req,"login_page "+JSON.stringify(req.url) );
 
     if (req.session && req.session.logged_in_user_id && req.url=='/account/login' && req.freezr_is_setup)  { // last term relevant only if freezr preferences file has been deleted
         res.redirect("/account/home");
@@ -72,7 +72,7 @@ exports.generate_applogin_results = function (req, res) {
 exports.generateAccountPage = function (req, res) {
     // /account/:sub_page
     // '/account/:sub_page/:to_do/:app_name'
-    helpers.log (req,"generateAccountPage: "+req.url+" "+req.params.sub_page+JSON.stringify(req.params));
+    helpers.log (req,"accountPage: "+req.url);
     if (!req.params.sub_page) {req.params.sub_page="home"} else {req.params.sub_page= req.params.sub_page.toLowerCase();}
     
     if (req.params.to_do) req.params.sub_page = req.params.sub_page + '_'+ req.params.to_do
@@ -89,8 +89,7 @@ exports.generateAccountPage = function (req, res) {
         } else {
             req.freezrInternalCallFwd = function(err, results) {
                 if (err) {
-                    console.log("error in generateAccountPage "+JSON.stringify(error));
-                    res.redirect("/account/home?errorGettingPage");
+                    res.redirect("/admin/public/starterror");
                 } else {
                     options.queryresults = results;
                     file_handler.load_data_html_and_page(res,options)
@@ -181,9 +180,10 @@ exports.login = function (req, res) {
     });
 };
 exports.ping = function (req, res) {
-    // /v1/account/ping/app_name
+    // /v1/account/ping 
     if (!req.session.logged_in_user_id) {
         helpers.send_success(res, { logged_in: false});
+        /*
     } else if (req.params.app_name) {
         freezr_db.get_or_set_user_app_code (req.session.logged_in_user_id,req.params.app_name, function(err,results,cb){
             if (err || !results.app_code) {
@@ -192,7 +192,7 @@ exports.ping = function (req, res) {
                  helpers.send_success(res, { logged_in: true, 'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version, 'source_app_code':results.app_code});       
             }
         })
-
+    */
     } else {
         helpers.send_success(res, { logged_in: true, 'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version});
     } 
@@ -316,7 +316,11 @@ exports.list_all_user_apps = function (req, res) {
     ],
     function (err, user_json) {
         if (err) {
-            helpers.send_failure(res, err,"account_handler", exports.version,"list_all_user_apps");
+            if (req.freezrInternalCallFwd) {
+                req.freezrInternalCallFwd(err, null)
+            } else {
+                helpers.send_failure(res, err,"account_handler", exports.version,"list_all_user_apps");
+            }
         } else {
             if (req.freezrInternalCallFwd) {
                 req.freezrInternalCallFwd(null, {removed_apps:removed_apps, user_apps:user_apps, new_apps:new_apps})

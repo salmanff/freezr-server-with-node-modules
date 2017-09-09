@@ -41,7 +41,7 @@ exports.generateSystemDataPage = function (req, res) {
 
 exports.generatePage = function (req, res) { 
     // '/apps/:app_name' and '/apps/:app_name/:page' (and generateDataPage above)
-    helpers.log (req,"generating page for app "+req.params.app_name+" page "+req.params.page);
+    helpers.log (req,"appPage: "+req.url);
 
     if (req.params.sysConfig === undefined) {
         file_handler.async_app_config(req.params.app_name, req.freezr_environment, function(err, app_config){

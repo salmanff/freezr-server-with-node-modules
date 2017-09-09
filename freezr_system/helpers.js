@@ -7,7 +7,7 @@ var async = require('async'),
 
 
 exports.log = function(req, message) {
-    console.log((new Date())+" - "+(req? (req.session.logged_in_user_id+" - "+req.ip): " server ")+" - "+message)
+    console.log((new Date())+" - "+(req? ((req.session.logged_in_user_id || "no_user")+" - "+req.ip): " server ")+" - "+message)
 }
 
 // Valid names

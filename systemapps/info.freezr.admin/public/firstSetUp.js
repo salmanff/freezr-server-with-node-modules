@@ -44,7 +44,6 @@ freezr.initPageScripts = function() {
   }
   document.getElementById('customFileSysSelect').onchange = changeFsChoice;
 
-  
   // populate
   let tempParams =localStorage.getItem("params");
   
@@ -59,6 +58,7 @@ freezr.initPageScripts = function() {
       db_pword: '',
       db_host: freezr_environment.dbParams.host,
       db_port: freezr_environment.dbParams.port,
+      db_has_pw: freezr_environment.dbParams.has_password,
       db_unifiedDbName: (freezr_environment.dbParams.unifiedDbName? freezr_environment.dbParams.unifiedDbName : ""),
       fs_selectorName: (freezr_environment.userDirParams.name? freezr_environment.userDirParams.name : "local"),
       fs_auth_Server: 'https://salmanff.com',
@@ -66,19 +66,24 @@ freezr.initPageScripts = function() {
     }
   };
 
-
   let newOauth = parseFragments();
-  console.log("original url href "+window.location.href)
+  //onsole.log("original url href "+window.location.href)
+
   if (newOauth && newOauth.access_token) {
     showMainSection('externalFs');
     tempParams.fs_token = newOauth.access_token;
     tempParams.fs_selectorName = newOauth.source;
     window.history.replaceState('Object', 'Title', '/admin/public/firstSetUp');
+  } else if (freezr_environment.userDirParams.has_access_token) {
+    tempParams.fs_has_token = true;
   }
+
   if (tempParams.db_user) showMainSection('externalDb');
 
   populateForm(tempParams);
-  hideCustSelectorDivs(tempParams.fs_token? "gotToken": null);
+
+  hideCustSelectorDivs((tempParams.fs_token || tempParams.fs_has_token)? "gotToken": null);
+
   populateErrorMessage(freezrServerStatus, true);
   
   setTimeout(function(){ document.body.scrollTop = 0;},20);
@@ -95,6 +100,7 @@ var  populateForm = function(params) {
   if (!params.fs_selectorName) params.fs_selectorName = "local";
   let selector = document.getElementById('customFileSysSelect');
   selector.selectedIndex = CUST_FILE_SEL_LIST.indexOf(params.fs_selectorName);
+  console.log("selector.selectedIndex" +selector.selectedIndex+" for name "+params.fs_selectorName)
 }
 var hideCustSelectorDivs = function(oauth2show) {
   var serviceName = CUST_FILE_SEL_LIST[document.getElementById('customFileSysSelect').selectedIndex];
@@ -106,7 +112,7 @@ var hideCustSelectorDivs = function(oauth2show) {
 var showAuthSection = function(section){
   hideDivs(['auth_manual', 'auth_external', 'auth_gotToken', 'auth_environmentToken'])
   if (section!="gotToken") document.getElementById("fs_token").value="";
-  if (section && section!="local") showDiv("auth_"+section);
+  if (section && section!="local") {showMainSection('externalFs'); showDiv("auth_"+section);}
 }
 var changeFsChoice = function() {
   if (document.getElementById('fs_token').value == "" || confirm("These will remove your current access token. Are you sure you want to change?")) hideCustSelectorDivs(null);
@@ -133,16 +139,16 @@ var get_current_vals = function() {
   
   params.db_addAuth=document.getElementById('db_addAuth')? document.getElementById('db_addAuth').checked:null;
 
-  params.wantsExternalDb = (params.db_host || params.db_pword);
+  params.wantsExternalDb = (params.db_host || params.db_pword || freezr_environment.dbParams.has_password);
   
-  params.externalDb = params.wantsExternalDb? {port:params.db_port, host:params.db_host, pass:params.db_pword, user:params.db_user, addAuth:params.db_addAuth}:null;
+  params.externalDb = params.wantsExternalDb? {port:params.db_port, host:params.db_host, pass:params.db_pword, user:params.db_user, addAuth:params.db_addAuth, has_password: freezr_environment.dbParams.has_password}:null;
 
   params.infoMissing = false;
   params.externalFs = {};
   params.fileSysSelected = CUST_FILE_SEL_LIST[document.getElementById('customFileSysSelect').selectedIndex];
   if (params.fileSysSelected!= 'local') {
-    params.externalFs = {name: params.fileSysSelected, access_token: document.getElementById('fs_token').value};
-    if (!params.externalFs.access_token) { params.infoMissing = true; }
+    params.externalFs = {name: params.fileSysSelected, access_token: document.getElementById('fs_token').value, has_access_token:freezr_environment.userDirParams.has_access_token}; 
+    if (!params.externalFs.access_token && !freezr_environment.userDirParams.has_access_token) { params.infoMissing = true; }
   }
   return params
 }

@@ -237,7 +237,7 @@ function addVersionNumber(req, res, next) {
         app.get ('/account/:sub_page', requireUserRights, account_handler.generateAccountPage);
 
         app.get('/v1/account/ping', addVersionNumber, account_handler.ping);
-        app.get('/v1/account/ping/:app_name', addVersionNumber, account_handler.ping);
+        //app.get('/v1/account/ping/:app_name', addVersionNumber, account_handler.ping);
         app.post('/v1/account/login', account_handler.login);
         app.post('/v1/account/applogin', account_handler.login);
         app.post('/v1/account/applogout', account_handler.logout);
@@ -258,7 +258,8 @@ function addVersionNumber(req, res, next) {
         app.put ('/v1/admin/user_register', requireAdminRights, admin_handler.user_register); 
         app.put ('/v1/admin/first_registration', addVersionNumber, function (req, res) {
             admin_handler.first_registration(req, function(err, results) {
-                if (err || !results.freezr_environment) {                     
+                if (err || !results || !results.freezr_environment) { 
+                    if (!err) err = {message:'unknown err', code:null}             
                     helpers.send_auth_failure(res, "admin_handler", exports.version,"first_registration",err.message, err.errCode); 
                 } else {
                     helpers.log (null,"End of process of 1st reg "+JSON.stringify(results))
@@ -277,11 +278,12 @@ function addVersionNumber(req, res, next) {
             // to if allows public people coming in, then move to public page
             //onsole.log("redirecting to account/home as default for "+req.originalUrl);
             var redirect_url = (req.session && req.session.logged_in)? "/account/home": (freezr_preferences.params.default_to_public? "/ppage":"/account/login");
-
+            helpers.log(req,"home url redirect")
             res.redirect( redirect_url);
             res.end();
         });
         app.get('*', function (req, res) {
+            helpers.log(req,"unknown url redirect: "+req.url)
             //onsole.log("redirecting to account/login as default or for non logged in "+req.originalUrl);
             res.redirect( (req.session && req.session.logged_in)? "/account/home":"/account/login");
             res.end();

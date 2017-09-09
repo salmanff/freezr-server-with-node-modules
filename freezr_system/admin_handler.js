@@ -11,7 +11,7 @@ var helpers = require('./helpers.js'),
 const USER_DIRS = ["userfiles", "userapps", "backups"];
 
 exports.generateAdminPage = function (req, res) {
-    helpers.log(req, "generateAdminPage "+req.url+" - "+req.params.sub_page)
+    helpers.log(req, "adminPage: "+req.url)
     // todo - distibguish http & https
     //onsole.log("??? req.headers.referer.split(':')[0]"+req.headers.referer);
     //console.log("??? req.secure "+req.secure)
@@ -52,14 +52,20 @@ exports.generateAdminPage = function (req, res) {
             page_title = "freezr.info - o-auth validating page";
             css_files = './info.freezr.public/freezr_style.css';
             break;
-        case "firstSetUp": //public
+        case "firstSetUp": //public - Note security checks done below
             page_title = "Freezr Set Up";
             page_url= 'firstSetUp.html';
             script_files = ['./info.freezr.admin/public/firstSetUp.js'];
             css_files = ['./info.freezr.admin/public/firstSetUp.css','./info.freezr.public/freezr_style.css'];
-            const temp_environment = JSON.parse(JSON.stringify(req.freezr_environment) );
-            if (temp_environment.dbParams && temp_environment.dbParams.pass )temp_environment.dbParams.pass = null;
-            if (temp_environment.userDirParams && temp_environment.userDirParams.access_token) temp_environment.userDirParams.access_token = null;
+            var temp_environment = temp_environment = JSON.parse(JSON.stringify(req.freezr_environment) );
+            if (temp_environment.dbParams && temp_environment.dbParams.pass ){
+                temp_environment.dbParams.pass = null;
+                temp_environment.dbParams.has_password = true;
+            };
+            if (temp_environment.userDirParams && temp_environment.userDirParams.access_token) {
+                temp_environment.userDirParams.access_token = null;
+                temp_environment.userDirParams.has_access_token = true;     
+            }
             other_variables = " var freezrServerStatus = "+JSON.stringify(req.freezrStatus)+"; var firstSetUp = "+(req.freezr_environment.freezr_is_setup? "false":"true")+";"+ " var freezr_environment = "+JSON.stringify(temp_environment)+";"
             break;
         case "starterror": // public
@@ -93,6 +99,12 @@ exports.generateAdminPage = function (req, res) {
         
     if (isPublicPage && req.params.sub_page == "oauthvalidate") {
         oauth_validate(req, res);
+    } else if (
+        req.params.sub_page=="firstSetUp" && 
+        req.freezr_environment.freezr_is_setup && 
+        !req.session.logged_in_as_admin
+        ) {
+        res.redirect("/");
     } else if (!initial_query_func || isPublicPage) {
         file_handler.load_data_html_and_page(res,options)
     } else {
@@ -197,6 +209,22 @@ exports.first_registration = function (req, callback) {
     var freezr_environment;
     var device_code = helpers.randomText(10);
     var users_exist_in_db = false;
+
+    var temp_status = req.freezrStatus;
+
+    var temp_environment = JSON.parse(JSON.stringify(req.freezr_environment));
+    if (req.body.externalDb && Object.keys(req.body.externalDb).length > 0 && req.body.externalDb.constructor === Object) temp_environment.dbParams = req.body.externalDb;  
+    temp_environment.dbParams.unifiedDbName = req.body.unifiedDbName || null;
+    if (temp_environment.dbParams && !temp_environment.dbParams.pass &&  
+        temp_environment.dbParams.user /* in case user is deleting all dbparams */ && 
+        req.freezr_environment.dbParams.pass) 
+        temp_environment.dbParams.pass = req.freezr_environment.dbParams.pass;
+    temp_environment.userDirParams = req.body.externalFs; 
+    if (!temp_environment.userDirParams && !temp_environment.userDirParams.access_token &&
+        temp_environment.userDirParams.name &&
+        req.freezr_environment.userDirParams.access_token )
+        temp_environment.userDirParams.access_token = req.freezr_environment.userDirParams.access_token;
+
     
     if (req.freezr_environment.freezr_is_setup && !req.session.logged_in_user_id) {
         callback(reg_auth_fail("System is already initiated.", "auth-initedAlready"));
@@ -213,13 +241,6 @@ exports.first_registration = function (req, callback) {
     else if (req.body.externalFs && !validExternalFsParams(req.body.externalFs) )
         callback(reg_auth_fail("File parameters are not correct","auth-invalidDbParams") );
     else {
-        var temp_status = req.freezrStatus;
-        var temp_environment = JSON.parse(JSON.stringify(req.freezr_environment));
-
-        if (req.body.externalDb && Object.keys(req.body.externalDb).length > 0 && req.body.externalDb.constructor === Object) temp_environment.dbParams = req.body.externalDb;  
-        temp_environment.dbParams.unifiedDbName = req.body.unifiedDbName || null;
-
-        temp_environment.userDirParams = req.body.externalFs;  
         
         async.waterfall([  
             function(cb) {
@@ -415,7 +436,11 @@ exports.make_sure_user_is_unique = function (user_id, email_address, callback) {
 exports.list_all_users = function (req, res) {
     freezr_db.all_users("_date_Modified", true, 0, null, function (err, results) {
         if (err) {
-            helpers.send_internal_err_failure(res, "admin_handler", exports.version,"list_all_users","failure to get all user list - "+err);
+            if (req.freezrInternalCallFwd) {
+                req.freezrInternalCallFwd(err, {users: []})
+            } else {
+                helpers.send_internal_err_failure(res, "admin_handler", exports.version,"list_all_users","failure to get all user list - "+err);
+            }
         } else {
             var out = [];
             if (results) {
