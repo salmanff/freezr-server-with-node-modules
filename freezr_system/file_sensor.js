@@ -11,7 +11,17 @@ const ALLOWED_APP_DIRECTORIES = ['static','public',('public'+path.sep+'static')]
 const ALLOWED_FILE_EXTS = ['json','png','jpg','jpeg','eot','ttf','woff','woff2'] 
 	// todo these should only be under static or make sure when reading files in load html that scripts are scripts and html's have html ending
 
+const TEXT_FILE_EXTS = ['json','html','js','css']
 
+exports.is_text_file = function(file_name) {
+    var file_ext = fileExt(file_name);
+    return (TEXT_FILE_EXTS.indexOf(file_ext.toLowerCase()) >= 0)
+}
+exports.is_allowed_file_ext = function(file_name) {
+    // of course, this can be circumvented to fix
+    var file_ext = fileExt(file_name);
+    return (ALLOWED_FILE_EXTS.indexOf(file_ext.toLowerCase()) >= 0)
+}
 exports.sensor_file_text = function (aText, fileName, flags) {
     // todo review and amerliorate (if not too weak a word) sensor algorithm
     // Write now sensor only gives warnings... at some point it will also sensor

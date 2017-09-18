@@ -500,9 +500,10 @@ freezer_restricted.permissions= {};
     } 
 
   }
-  freezer_restricted.menu.resetDialogueBox = function(isAdminPage) {
+  freezer_restricted.menu.resetDialogueBox = function(isAdminPage, addText) {
     console.log("resetting Dialogue box")
-    if (document.getElementById('freezer_dialogueInnerText')) document.getElementById('freezer_dialogueInnerText').innerHTML= '<br/><div align="center">.<img src="'+(freezr.app.isWebBased? "/app_files/info.freezr.public/static/ajaxloaderBig.gif": "./freezrPublic/static/ajaxloaderBig.gif")+'"/></div>';
+    var innerText = (document.getElementById('freezer_dialogueInnerText'));
+    if (innerText) innerText.innerHTML= (addText? ("<br/><div>"+addText+"</div>"): "" )+'<br/><div align="center">.<img src="'+(freezr.app.isWebBased? "/app_files/info.freezr.public/static/ajaxloaderBig.gif": "./freezrPublic/static/ajaxloaderBig.gif")+'"/></div>';
     var dialogueEl = document.getElementById('freezer_dialogueOuter');
     if (dialogueEl) dialogueEl.style.display="block";
     var bodyEl = document.getElementsByTagName("BODY")[0]

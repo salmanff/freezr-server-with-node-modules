@@ -519,10 +519,15 @@ exports.appMgmtActions  = function (req,res) /* deleteApp updateApp */ {
                     cb(null);
             },
 
-            // updateApp 2. Make sure app directory exists
+            // updateApp 2a. Make sure app directory exists
             function (cb) {
                 file_handler.checkExistsOrCreateUserAppFolder(app_name, req.freezr_environment, cb);
             },
+            // updateApp 2b. clear app FSCache if need be
+            function (cb) {
+                file_handler.clearFSAppCache(app_name, req.freezr_environment, cb);
+            },
+
 
             // 3a. Get and check app_config (populate app_version and app_display_name and permissons)
             function (cb) {

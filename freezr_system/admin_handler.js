@@ -368,6 +368,21 @@ exports.first_registration = function (req, callback) {
             }, 
 
             function (cb) { 
+                if (freezr_environment.userDirParams && freezr_environment.userDirParams.name) {
+                    console.log("writing to env")
+                    file_handler.writeTextToUserFile (null, "freezr_environment.js", "exports.params=" + JSON.stringify(freezr_environment), {fileOverWrite:true}, null, null, freezr_environment, function (err) {
+                        if(err) { 
+                            helpers.warning("admin_handler", exports.version, "first_registration", "error_writing_environment_to_external_fs "+err );
+                        } 
+                        cb(null);
+                    });
+                } else {
+                    cb(null)
+                }
+            }, 
+
+            function (cb, filename) { 
+                // probably should keep a copy of old envs for security review purposes
                 freezr_db.write_environment(freezr_environment, function(err, results){
                     if (err) {
                         helpers.state_error("admin_handler", exports.version, "first_registration", err, "error_writing_environment_to_db" )

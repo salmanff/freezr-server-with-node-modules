@@ -18,6 +18,7 @@ var fs = require('fs'),
     session = require('express-session'),
     app = express();
 
+
 var db_main = require('./freezr_system/db_main.js'),
     admin_handler = require('./freezr_system/admin_handler.js'),
     account_handler = require('./freezr_system/account_handler.js'),
@@ -445,7 +446,9 @@ async.waterfall([
         if (err) { 
             helpers.warning("server.js", exports.version, "startup_waterfall", "STARTUP ERR "+JSON.stringify(err) )        
         }    
-        app.listen(freezr_environment.port) //, freezr_environment.ipaddress)
+        // st hack in case of change in port (eg heroku) - to do - make more elegant with env defaults
+        var theport = (process && process.env && process.env.PORT)? process.env.PORT : freezr_environment.port;
+        app.listen(theport) //, freezr_environment.ipaddress)
         helpers.log (null,"Going to listen on port "+freezr_environment.port)
     }
 )
@@ -455,4 +458,7 @@ var getAllOkayStatus = function(aStatus) {
 
 }
         
+//var test_custom_file_env = require('./freezr_system/environment/file_env_dropbox.js'); //- use this to make sure custo file env does not have bugs
+//var test_custom_file_con = require('./test_config.js'); //- use this to make sure custo file env does not have bugs
+//console.log(test_custom_file_con)
 

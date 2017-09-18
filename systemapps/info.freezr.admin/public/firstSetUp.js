@@ -153,11 +153,11 @@ var get_current_vals = function() {
   return params
 }
 var register = function () {
-  document.body.scrollTop = 0;
+  (document.documentElement || document.body.parentNode || document.body).scrollTop = 0;
 
   let forminfo = get_current_vals();
   // create 
-  //onsole.log(forminfo)
+  console.log(forminfo)
 
   if (!forminfo || !forminfo.user_id || !forminfo.password) {
     showError("You need a name and password to log in");
@@ -170,7 +170,6 @@ var register = function () {
   } else {
     showError("");
     document.getElementById("click_register").style.display="none";
-    document.getElementById("loader").style.display="block";
     var theInfo = { register_type: "setUp",
                     isAdmin: "true",
                     user_id: forminfo.user_id,
@@ -180,7 +179,8 @@ var register = function () {
                     externalFs: forminfo.externalFs
                   };
     freezer_restricted.menu.resetDialogueBox(true);
-    
+    //setTimeout(function(){ },2000);
+
     freezer_restricted.connect.write("/v1/admin/first_registration", theInfo, gotRegisterStatus, "jsonString");
   }
 }
@@ -206,7 +206,6 @@ var gotRegisterStatus = function(data) {
     showInstructions(data.freezrStatus);
   }
       document.getElementById("click_register").style.display="block";
-      document.getElementById("loader").style.display="none";
 }
 
 

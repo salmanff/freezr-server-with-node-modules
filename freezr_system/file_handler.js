@@ -165,7 +165,7 @@ exports.extractZippedAppFiles = function(zipfile, app_name, originalname, env_pa
             });
 
             if (gotDirectoryWithAppName) {
-                zip.extractEntryTo(app_name+"/", app_path, false, true);
+                zip.extractEntryTo(app_name + "/", app_path, false, true);
             } else {
                 zip.extractAllTo(app_path, true);
             }
@@ -251,6 +251,14 @@ exports.checkExistsOrCreateUserAppFolder = function (app_name, env_params, callb
     } else {
         var app_path = exports.fullPathToUserLocalAppFiles(app_name, null);
         localCheckExistsOrCreateUserFolder(app_path, callback);
+    }
+}
+exports.clearFSAppCache = function (app_name, env_params, callback) {
+    // console from security perspective should wipe out files so no rogue files remain from previous installs ( todo)
+    if (useCustomEnvironment(env_params, app_name) ) {
+        custom_environment.clearFSAppCache(app_name, env_params, callback);
+    } else {
+        callback(null);
     }
 }
 exports.async_app_config = function(app_name, env_params, callback) {

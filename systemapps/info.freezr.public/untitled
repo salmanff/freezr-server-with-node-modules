@@ -1,0 +1,5 @@
+
+error in 
+error -syncing already in progress
+summernotery.js:1191 Uncaught TypeError: Cannot read property 'childNodes' of undefinedfromOffsetPath @ summernotery.js:1191range.createFromBookmark @ summernotery.js:3066applySnapshot @ summernotery.js:3179undo @ summernotery.js:3231undo @ summernotery.js:3965invoke @ summernotery.js:1755handleKeyMap @ summernotery.js:3875(anonymous function) @ summernotery.js:3800jQuery.event.dispatch @ jquery-3.1.0.js:5110elemData.handle @ jquery-3.1.0.js:4918
+notery.js:1047 err

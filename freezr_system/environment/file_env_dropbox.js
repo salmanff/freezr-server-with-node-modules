@@ -9,6 +9,7 @@ var Dropbox = require('dropbox'),
 	https = require('https'),
     async = require('async'), 
     helpers = require('../helpers.js'), 
+    fs = require('fs'), path = require('path'), // for cached app files
     json = require('comment-json');
 
 exports.version = "0.0.11";
@@ -22,8 +23,13 @@ exports.use = true;
 exports.customFiles = function(app_name) {return true} 
 exports.customDb    = function(app_name) {return false} 
 
+
+var useAppFileFSCache = function() {
+	// todo - set to false base don user_prefs and ability to write to server 
+	return true;
+}
 /*  
-custom_environment should have the following functions for a db:
+custom_environment should have the following functions for a db: TBCompleted
 
 */
 
@@ -40,16 +46,34 @@ exports.init_custom_env = function(env_params, callback)  {
 	}
 }
 exports.setupFileSys = function(freezr_environment, USER_DIRS, callback) {
-	// no neeed to set up as dropbox creates parent folders automatically so doesnt create error
+	// no need to set up as dropbox creates parent folders automatically so doesnt create error
 	callback(null);
 }
 
 exports.sendAppFile = function(res, filePath, env_params) {
 	if (!dbx) exports.init_custom_env(env_params);
 	//onsole.log("sending app file "+filePath)
-	dbx.filesGetTemporaryLink({path: "/"+filePath})
-      .then( response => https.get(response.link, secondRes => secondRes.pipe(res) ) )
-      .catch(error => {
+    if (useAppFileFSCache() && fs.existsSync(systemPathTo (filePath))) {
+    	//onsole.log("SENDING Cached version")
+    	res.sendFile(systemPathTo(filePath));
+    } else {
+    	dbx.filesGetTemporaryLink({path: "/"+filePath})
+		.then( response => https.get(response.link, secondRes => {
+			secondRes.pipe(res);
+			var pathOnly = filePath.split("/");
+			if (useAppFileFSCache() && pathOnly.length>0){
+		  	   	//onsole.log("Going to FScache the file on node server;");
+		      	pathOnly.pop();
+		      	// Note - async version of mkdir loses pipe so need to use sync
+		      	localCheckExistsOrCreateUserFolderSync(pathOnly.join(path.sep) )
+		  	var myFile = fs.createWriteStream(systemPathTo(filePath));
+			secondRes.pipe(myFile);
+				return;
+			} else {return;}
+		}) )
+		.catch(error => {
+			console.log("err in send app file")
+			console.log(error)
 		if (error && error.error && error.error.error_summary && helpers.startsWith(error.error.error_summary, 'path/not_found') ){
 		  	if (!helpers.endsWith(filePath,"logo.png")) helpers.warning("file_env_dropbox.js", exports.version, "sendAppFile", "Missing file:  "+filePath);
 		} else {
@@ -57,9 +81,11 @@ exports.sendAppFile = function(res, filePath, env_params) {
 			error.message+=" Missing file: "+filePath
 			helpers.state_error ("file_env_dropbox", exports.version, "sendAppFile", error, "missing_file");
 		}
-        res.sendStatus(401);
-      });
-}
+		res.sendStatus(401);
+		});
+	}
+    
+} 
 
 exports.writeUserFile = function (folderPartPath, fileName, saveOptions, data_model, req, callback) { 
 	//onsole.log("writeUserFile",folderPartPath)
@@ -79,7 +105,9 @@ exports.writeUserFile = function (folderPartPath, fileName, saveOptions, data_mo
     	uploadparams.autorename = true;
 	}
 	dbx.filesUpload(uploadparams)
-	    .then(response => callback(null, response.name) )
+	    .then(response => {
+	    	callback(null, response.name)
+	    } )
         .catch(function(error) {
           	var errparse = {};
           	if (error) errparse = JSON.parse(error.error);
@@ -134,7 +162,13 @@ exports.checkExistsOrCreateUserAppFolder = function (app_name, env_params, callb
 	if (!dbx) exports.init_custom_env(env_params);
 	var filePath = "/userapps/"+app_name
 	dbx.filesCreateFolder({path: filePath})
-	    .then(response => callback(null)  )
+	    .then(response => {
+	    	if (useAppFileFSCache()){
+		    	var app_path = "userapps"+path.sep+app_name;
+	        	localCheckExistsOrCreateUserFolderSync(systemPathTo(app_path));
+	        }
+	    	callback(null) 
+	    } )
         .catch( error => {
           	if (error && error.error && error.error.error_summary && error.error.error_summary.indexOf( "conflict")>0 ) {
           		//onsole.log("checkExistsOrCreateUserAppFolder - FILE ALREADY EXSITS "+filePath+" - ignore error");
@@ -145,6 +179,21 @@ exports.checkExistsOrCreateUserAppFolder = function (app_name, env_params, callb
           	callback(error)
         });	
 }
+
+exports.clearFSAppCache = function (app_name, env_params, callback) {
+    // console from security perspective should wipe out files so no rogue files remain from previous installs ( todo)
+    if (useAppFileFSCache() && fs.existsSync(systemPathTo ("userapps/"+app_name))) {
+            deleteLocalFolderAndCacheAndContents(app_name, null, function(err) {
+                // ignores err of removing directories - todo shouldflag
+                if (err) console.log("ignoring ERROR in removing app files for "+app_name+ "err:"+err);
+                callback(null)
+            });        // from http://stackoverflow.com/questions/18052762/in-node-js-how-to-remove-the-directory-which-is-not-empty		
+	} else {    
+        callback(null);
+	}
+}
+
+
 exports.sendUserFile = function(res, filePath, env_params) {
 	if (!dbx) exports.init_custom_env(env_params);
 	//onsole.log("SENDING USER FILE "+filePath)
@@ -167,23 +216,31 @@ exports.get_file_content = function(filePath, env_params, callback) {
 	} else {
 		if (Object.keys(FILE_CACHE).length > MAX_LEN_FILE_CACHE) reduce_file_cache_items();
 		FILE_CACHE[filePath] = null;
-		dbx.filesDownload({path: filePath})
-	      .then(response => {
-	      	FILE_CACHE[filePath] = {content: response.fileBinary, 'access_date' : new Date().getTime()};
-	      	callback(null, response.fileBinary) 
-	      })
-	      .catch(error => {
-	      	var errparse = JSON.parse(error.error);
-	      	if (errparse && errparse.error_summary && helpers.startsWith(errparse.error_summary, 'path/not_found') ){
-	      		console.log("errparse.error_summary")
-	      		console.log(errparse.error_summary)
-	      		FILE_CACHE[filePath] = {content: '', 'access_date' : new Date().getTime()};
-	      		callback(helpers.error("file_not_found","Could not get content for inexistant file at "+filePath) ,null)
-	      	} else {
-		  		helpers.warning("file_env_dropbox.js", exports.version, "get_file_content", "Could not get file content for  "+filePath);
-		        callback(error, null);
-	      	}
-	      });
+		//onsole.log("checling for fscache "+filePath+" exists? "+fs.existsSync(systemPathTo (filePath)) )
+	 	if (useAppFileFSCache() && fs.existsSync(systemPathTo (filePath))) {
+	    	fs.readFile(systemPathTo( filePath ), 'utf8', (err, html_content) => { 
+				if (!err) FILE_CACHE[filePath] = {content: html_content, 'access_date' : new Date().getTime()} 
+				callback(err, html_content) 
+			})
+	    } else {
+			dbx.filesDownload({path: filePath})
+			.then(response => {
+				FILE_CACHE[filePath] = {content: response.fileBinary, 'access_date' : new Date().getTime()};
+				callback(null, response.fileBinary) 
+			})
+			.catch(error => {
+				var errparse = JSON.parse(error.error);
+				if (errparse && errparse.error_summary && helpers.startsWith(errparse.error_summary, 'path/not_found') ){
+					console.log("errparse.error_summary")
+					console.log(errparse.error_summary)
+					FILE_CACHE[filePath] = {content: '', 'access_date' : new Date().getTime()};
+					callback(helpers.error("file_not_found","Could not get content for inexistant file at "+filePath) ,null)
+				} else {
+					helpers.warning("file_env_dropbox.js", exports.version, "get_file_content", "Could not get file content for  "+filePath);
+			    	callback(error, null);
+				}
+			});
+	    }
 	}
 }
 exports.async_app_config = function (app_name, env_params, callback) {
@@ -225,7 +282,6 @@ var doParseConfig = function(app_name, app_config, callback) {
 exports.extractZippedAppFiles = function(zipfile, app_name, originalname, env_params, callback){
 	var AdmZip = require('../forked_modules/adm-zip/adm-zip.js');
     var zip = new AdmZip(zipfile); //"zipfilesOfAppsInstalled/"+app_name);
-	var app_path = "app_files/"+app_name;
     var zipEntries = zip.getEntries(); // an array of ZipEntry records
     var gotDirectoryWithAppName = null;
     zipEntries.forEach(function(zipEntry) {
@@ -268,7 +324,30 @@ exports.extractZippedAppFiles = function(zipfile, app_name, originalname, env_pa
 
 	}
 
-	zip.extractAllToAsyncWithCallFwd(call_fwd, true, callback);
+	zip.extractAllToAsyncWithCallFwd(call_fwd, true, function(err) {
+		if (err) {
+			callback(err)
+		} else if (useAppFileFSCache()){
+			try { 
+	            var zip = new AdmZip(zipfile); //"zipfilesOfAppsInstalled/"+app_name);
+			    var partialUrl = 'userapps'+path.sep+app_name;
+                var FSCache_app_path = systemPathTo(partialUrl);
+
+	            if (gotDirectoryWithAppName) {
+	                zip.extractEntryTo(app_name + "/", FSCache_app_path, false, true);
+	            } else {
+	                zip.extractAllTo(FSCache_app_path, true);
+	            }
+	            callback(null);
+	        } catch ( e ) { 
+	        	helpers.warning("file_env_dropbox", exports.version, "extractZippedAppFiles", "Error extracting to FSCache"+e )
+	            callback(null);
+	        }
+
+		} else {
+			callback(null)
+		}
+	});
 };
 
 
@@ -294,12 +373,15 @@ exports.get_full_folder_file_list = function(partialUrl, iterate, env_params, ca
         })
 	  })
 	  .catch(function(error) {
+	    console.log("get_full_folder_file_list err:");
 	    console.log(error);
 	        // add to flags??
 	});
 }
 
 exports.sensor_app_directory_files = function (app_name, flags, env_params, callback) {
+	// this needs to be restructuring so fle_sensor is called by Account:handler and then it calls file handler...
+	// "algorithm" needs to become one! todo.
     var file_ext = "", file_text="";
     if (!flags) flags = new Flags({'app_name':app_name});
 
@@ -314,7 +396,7 @@ exports.sensor_app_directory_files = function (app_name, flags, env_params, call
 	    			cb2(null)
 	    		} else if (sensor.isStaticFolder(fileInfo["path_lower"])) {
 	    			cb2(null);
-	    		} else {
+	    		} else if (sensor.is_text_file(fileInfo.name)){
 	    			env_params.reset_cache = true; // convenient (though inlelegant) place to put this to renew cache
 		    		exports.get_file_content(fileInfo.path_lower, env_params, function(err, content) { 
 		        		if (err) {
@@ -322,11 +404,17 @@ exports.sensor_app_directory_files = function (app_name, flags, env_params, call
 		        		} else {
 		        			flags = sensor.sensor_file_text(content, fileInfo.name, flags);
 		        		}
-		        		cb2(null)
+		        		cb2(null);
 		    		})
+	    		} else if (sensor.is_allowed_file_ext(fileInfo.name)) {
+	    			cb2(null);
+	    		} else {
+	    			flags.add('warnings','file_illegal_extension',{'fileName':fileInfo.name,'text':'Unknown file extension'});
+	    			cb2(null);
 	    		}
 	        }, function(err){
 	        	if (err) flags.add('errors', (err.code? err.code:"unknown_err_sensor"), {'function':'sensor_app_directory_files', 'text':err.message});
+		    	env_params.reset_cache = false;
 		        callback(null, flags, callback);
 	        })
     	}
@@ -354,3 +442,103 @@ var reduce_file_cache_items = function() {
     for (var i= 0; i<reduce_by_num; i++) {delete FILE_CACHE[list[i].filePath]; }
 }
 
+
+// file system - needed for caching - consider moving these into a fsutils file accessed by both file_handler and other env_file_handlers
+
+var systemPathTo = function(partialUrl) {
+    if (partialUrl) {
+        return path.normalize(systemPath() + path.sep + removeStartAndEndSlashes(partialUrl) ) ;
+    } else {
+        return systemPath();    
+    }
+}
+var systemPath = function() {
+    //
+    return path.normalize(__dirname.replace(path.sep+"freezr_system"+path.sep+"environment","") )
+}
+var removeStartAndEndSlashes = function(aUrl) {
+	if (helpers.startsWith(aUrl,"/")) aUrl = aUrl.slice(1);
+	if (aUrl.slice(aUrl.length-1) == "/") aUrl = aUrl.slice(0,aUrl.length-1);
+	return aUrl;
+}
+var localCheckExistsOrCreateUserFolderSync = function (aPath) {
+	/*
+	if (!aPath) return;
+	var dirs = aPath.split("/")
+	if (aPath.length == 0) return;
+	var thisPath = dirs.shift();
+	var fullPath =  systemPathTo (aPath);
+	if (!fs.existsSync(fullPath) ) fs.mkdirSync(fullPath);
+	return;*/
+    // from https://gist.github.com/danherbert-epam/3960169 modified for sync
+    var pathSep = path.sep;
+    var dirs = aPath.split("/");
+    var root = "";
+    
+    mkDir();
+
+    function mkDir(){
+        var dir = dirs.shift();
+        if (dir === "") {// If directory starts with a /, the first path will be th root user folder.
+            root = systemPath() + pathSep;
+        }
+        if (!fs.existsSync(root + dir) ){
+            fs.mkdirSync(root + dir); 
+            root += dir + pathSep;
+            if (dirs.length > 0) {
+                mkDir();
+            } else {
+                return;
+            }
+        } else {
+            root += dir + pathSep;
+            if (dirs.length > 0) {
+                mkDir();
+            } else {
+                return;
+            }
+    	};
+    }
+}
+
+// delete FILE_CACHE[list[i].filePath];
+var deleteLocalFolderAndCacheAndContents = function(app_name, subfolders, next) {
+    // http://stackoverflow.com/questions/18052762/in-node-js-how-to-remove-the-directory-which-is-not-empty
+    
+    location = systemPathTo("userapps/"+app_name + (subfolders? ("/"+subfolders) :"") );
+    //onsole.log("deleteLocalFolderAndCacheAndContents "+location);
+    if (!subfolders) subfolders = ""
+
+    fs.readdir(location, function (err, files) {
+        async.forEach(files, function (file, cb) {
+            var fullFilePath = location + '/' + file
+            fs.stat(fullFilePath, function (err, stat) {
+                if (err) {
+                    return cb(err);
+                }
+                if (stat.isDirectory()) {
+                    deleteLocalFolderAndCacheAndContents(app_name, (subfolders+"/"+file)  , cb);
+                } else {
+                	//onsole.log("deleting app cache for "+app_name+(subfolders? ("/"+subfolders+"/"):"/")+file )
+                	if (FILE_CACHE[app_name+(subfolders? ("/"+subfolders+"/"):"/")+file  ]) delete FILE_CACHE[app_name+(subfolders? ("/"+subfolders+"/"):"/")+file  ]
+                    if (fs.existsSync(fullFilePath)){
+                        fs.unlink(fullFilePath, function (err) {
+                            if (err) {
+                            	console.log("got err "+err)
+                                return cb(err);
+                            }
+                            return cb();
+                        })
+                     } else {
+                     	return cb();
+                     }
+                }
+            })
+        }, function (err) {
+            if (err) return next(err)
+            fs.rmdir(location, function (err) {
+                return next(err)
+            })
+        })
+    })
+}
