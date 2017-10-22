@@ -35,7 +35,7 @@ custom_environment should have the following functions for a db: TBCompleted
 
 
 exports.init_custom_env = function(env_params, callback)  {
-	console.log("     Initialising custom environment for dropbox - dbx ")
+	console.log("     Initialising custom environment for dropbox - dbx (NOTE - NODE 4.x + NEEDED TO RUN THIS.) ")
 	var userDirParams = (env_params && env_params.userDirParams)? env_params.userDirParams: null;
 	var access_token = (env_params && env_params.userDirParams && env_params.userDirParams.access_token)? env_params.userDirParams.access_token: null;
 	if (!access_token) {					
@@ -306,14 +306,17 @@ exports.extractZippedAppFiles = function(zipfile, app_name, originalname, env_pa
 				dowrite=false;
 			}
 		}
-		if (dowrite && gotDirectoryWithAppName) {
-			if (helpers.startsWith(file_name, gotDirectoryWithAppName) ) {
+		if (dowrite) {
+			if (gotDirectoryWithAppName && helpers.startsWith(file_name, gotDirectoryWithAppName) ) {
 				file_name = "userapps/"+app_name+"/"+file_name.substring(gotDirectoryWithAppName.length);
-			} else {
+			} else if (gotDirectoryWithAppName) {
 				dowrite = false
+			} else {
+				file_name = "userapps/"+app_name+"/"+file_name;
 			}
 		}	
 		if (dowrite) {
+			//onsole.log("writing user file "+file_name)
 			exports.writeUserFile (file_name, null, {fileOverWrite:true}, null, fakereq, function(err){
 				if (err) helpers.warning("file_env_dropbox", exports.version, "extractZippedAppFiles", "Error writing file "+file_name+" to dropbox" )
 				callfwdback();

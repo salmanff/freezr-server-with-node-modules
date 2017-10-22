@@ -107,19 +107,21 @@ exports.setup_file_sys = function(env_params, USER_DIRS, callback) {
 var useCustomEnvironment = function(env_params, app_name) {
     if (isSystemApp(app_name)) return false;
     if (!env_params || !env_params.userDirParams || !custom_environment || !custom_environment.use || !custom_environment.customFiles || !custom_environment.customFiles(app_name) ) return false;
-    return true;  
+    return true;
 }
 exports.sendAppFile = function(res, partialUrl, env_params) {
     //onsole.log ("sending app file "+partialUrl) //+" test_custom_env "+partialUrl+"en parmas"+JSON.stringify(env_params))
-    var path_parts = partialUrl.split("/");
+    partialUrl = path.normalize(partialUrl);
+    var path_parts = partialUrl.split(path.sep);
     var app_name = path_parts[1];
 
     if (useCustomEnvironment(env_params, app_name) ) {
         var filePath = exports.removeStartAndEndSlashes(partialUrl.replace("app_files","userapps"));
         custom_environment.sendAppFile(res, filePath, env_params);
     } else {
+        
         var filePath = (helpers.system_apps.indexOf(app_name)>=0)? exports.systemAppsPathTo(partialUrl):userAppsLocalPathTo(partialUrl);
-        if (!fs.existsSync( filePath)) {
+        if (!fs.existsSync(filePath)) {
             if (!helpers.endsWith(partialUrl,"logo.png")) {
                 helpers.warning("file_handler.js", exports.version, "sendAppFile", "link to non-existent file "+filePath );
             }
@@ -129,6 +131,8 @@ exports.sendAppFile = function(res, partialUrl, env_params) {
         } 
     }
 }
+
+
 exports.get_file_content = function(app_name, page_url, env_params, callback){
     //onsole.log("get_file_content for "+app_name+" - " +page_url+" have custom env? "+(custom_environment? "yes":"No"))
     var isSystemAppRef = function(aUrl) {
@@ -139,7 +143,7 @@ exports.get_file_content = function(app_name, page_url, env_params, callback){
     }
     var filePath = exports.removeStartAndEndSlashes(exports.partPathToAppFiles(app_name, page_url));
     if (!useCustomEnvironment(env_params, app_name) || isSystemAppRef(page_url) ) {
-        fs.readFile( exports.appsLocalPathTo( filePath ), 'utf8', (err, html_content) => {  callback(err, html_content) })
+        fs.readFile( exports.appsLocalPathTo( filePath ), 'utf8', function (err, html_content) {  callback(err, html_content) })
     } else {
         filePath = filePath.replace("app_files","userapps");
         custom_environment.get_file_content(filePath, env_params, callback);
@@ -149,7 +153,9 @@ exports.extractZippedAppFiles = function(zipfile, app_name, originalname, env_pa
     if (useCustomEnvironment(env_params, app_name) ) {
         custom_environment.extractZippedAppFiles(zipfile, app_name, originalname, env_params, callback);
     } else {
+        //onsole.log("getting "+'.'+path.sep+'forked_modules'+path.sep+'adm-zip'+path.sep+'adm-zip.js');
         var AdmZip = require('./forked_modules/adm-zip/adm-zip.js');
+        //var AdmZip = require('.'+path.sep+'forked_modules'+path.sep+'adm-zip'+path.sep+'adm-zip.js');
 
         try {   
             var zip = new AdmZip(zipfile); //"zipfilesOfAppsInstalled/"+app_name);
@@ -164,7 +170,7 @@ exports.extractZippedAppFiles = function(zipfile, app_name, originalname, env_pa
                 if (zipEntry.isDirectory && zipEntry.entryName == originalname+"/") gotDirectoryWithAppName= true;
             });
 
-            if (gotDirectoryWithAppName) {
+            if (gotDirectoryWithAppName) { // mac issue
                 zip.extractEntryTo(app_name + "/", app_path, false, true);
             } else {
                 zip.extractAllTo(app_path, true);
@@ -202,6 +208,7 @@ exports.sendUserFile = function(res, partialUrl, env_params) {
     }
 }
 exports.writeUserFile = function (folderPartPath, fileName, saveOptions, data_model, req, callback) {   
+    //onsole.log("writeUserFile "+folderPartPath+" - "+fileName)
     if (useCustomEnvironment(req.freezr_environment, req.params.app_name) ) {
         custom_environment.writeUserFile(folderPartPath, fileName, saveOptions, data_model, req, callback)
     } else {
@@ -273,13 +280,13 @@ exports.async_app_config = function(app_name, env_params, callback) {
 
         fs.readFile( configPath, function (err, app_config) {
             if (err) {
-                console.log("ERROR READING APP CONFIG")
+                console.log("ERROR READING APP CONFIG (1) "+app_name)
                 callback(helpers.error("file_handler.js",exports.version,"async_app_config", "Error reading app_config file for "+app_name+": "+JSON.stringify(e)) );
             } else{
                 try {
                     app_config = json.parse(app_config, null, true);
                 } catch (e) {
-                    console.log("ERROR READING ")
+                    console.log("ERROR READING app config (2) "+app_name)
                     console.log(e)
                     err = helpers.app_config_error(exports.version, "file_handler:async_app_config", app_name,app_name+" app_config could not be parsed..."+e.message+" - parsing requires app config to have double quotes in keys.")
                     app_config = null;
@@ -458,7 +465,7 @@ exports.appsLocalPathTo = function(partialUrl) {
     return isSystemApp(app_name)? exports.systemAppsPathTo(partialUrl) : userAppsLocalPathTo(partialUrl);
 }
 exports.systemAppsPathTo = function(partialUrl) {
-    //
+    //onsole.log("systemAppsPathTo "+partialUrl)
     return exports.systemPathTo(partialUrl.replace("app_files","systemapps") );
 }
 exports.userLocalFileStats = function(user_id,app_name,folder_name, file_name, callback){
@@ -469,7 +476,7 @@ var deleteLocalFolderAndContents = function(location, next) {
     // http://stackoverflow.com/questions/18052762/in-node-js-how-to-remove-the-directory-which-is-not-empty
     fs.readdir(location, function (err, files) {
         async.forEach(files, function (file, cb) {
-            file = location + '/' + file
+            file = location + path.sep + file
             fs.stat(file, function (err, stat) {
                 if (err) {
                     return cb(err);
@@ -508,16 +515,19 @@ var auto_enumerate_filename = function(folderpath,fileName) {
 var localCheckExistsOrCreateUserFolder = function (aPath, callback) {
     // from https://gist.github.com/danherbert-epam/3960169
     var pathSep = path.sep;
-    var dirs = aPath.split("/");
+    var dirs =  path.normalize(aPath).split(path.sep);
     var root = "";
     
     mkDir();
 
     function mkDir(){
+
         var dir = dirs.shift();
         if (dir === "") {// If directory starts with a /, the first path will be th root user folder.
             root = systemPath() + pathSep;
         }
+        //onsole.log("mkDir "+root + dir);
+
         fs.exists(root + dir, function(exists){
             if (!exists){
                 fs.mkdir(root + dir, function(err){
@@ -541,6 +551,7 @@ var localCheckExistsOrCreateUserFolder = function (aPath, callback) {
 };
 var userAppsLocalPathTo = function(partialUrl) {
     partialUrl = partialUrl.replace("app_files","userapps");
+    //onsole.log("userAppsLocalPathTo "+partialUrl)
     if (custom_environment) { // todo clean up - make sure custom env is needed
         console.log("SNBH - tdodo - review - "+partialUrl)
         return exports.removeStartAndEndSlashes(partialUrl)

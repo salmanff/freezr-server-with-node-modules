@@ -22,6 +22,7 @@ exports.log = function(req, message) {
     // note - App_name and user_id etc could have spaces but need to deCodeUri when in url 
     exports.valid_app_name = function(app_name) {
         if (!app_name) return false;
+        if (app_name.length<1) return false;
         if (!exports.valid_filename(app_name)) return false;
         if (exports.starts_with_one_of(app_name, ['.','-','\\','system'] )) return false;
         if (exports.system_apps.indexOf(app_name)>-1) return false;
@@ -267,7 +268,7 @@ exports.getUniqueWords = function (anObject,theFields){
 exports.variables_are_similar = function (obj1, obj2) {
     //onsole.log("variables_are_similar ",JSON.stringify(obj1),JSON.stringify(obj2)," - - - - -----------------")
     if (typeof obj1 != typeof obj2) {
-        console.log("variables_are_similar NOT - Type mismatch ",obj1,obj2)
+        //onsole.log("variables_are_similar NOT - Type mismatch ",obj1,obj2)
         return false
     } else if (obj1 == obj2) {
         return true
@@ -279,7 +280,7 @@ exports.variables_are_similar = function (obj1, obj2) {
     } else if (typeof obj1 == "object") {
         return objects_are_similar(obj1, obj2)
     } else {
-        console.log("variables_are_similar NOT - Unknown mismatch ",obj1,obj2)
+        //onsole.log("variables_are_similar NOT - Unknown mismatch ",obj1,obj2)
         return false        
     }
 
@@ -287,14 +288,14 @@ exports.variables_are_similar = function (obj1, obj2) {
 }
 var arrays_are_similar = function(list1,list2) {
     if (list1.length != list2.length) {
-        console.log("variables_are_similar NOT - lists of idfferent engths")
+        //onsole.log("variables_are_similar NOT - lists of idfferent engths")
         return false;
     } else if (list1.length==0){
         return true
     } else {
         for (var i =0; i<list1.length; i++) {
             if (!exports.variables_are_similar(list1[i], list2[i])) {
-                console.log("variables_are_similar NOT - lists are unsimilar - may be unordered - todo - add unordered option to lists")
+                //onsole.log("variables_are_similar NOT - lists are unsimilar - may be unordered - todo - add unordered option to lists")
                 return false;
             }
         }
@@ -305,16 +306,16 @@ var objects_are_similar = function (obj1, obj2) {
     if (!obj1 && !obj2) {
         return true
     } else if (!obj1) {
-        console.log("objects_are_similar NOT - missing obj1 vy obj2 ",obj2)
+        //onsole.log("objects_are_similar NOT - missing obj1 vy obj2 ",obj2)
         return false
     } else if (!obj2) {
-        console.log("objects_are_similar NOT -missing obj2 vy obj1 ",obj1)
+        //onsole.log("objects_are_similar NOT -missing obj2 vy obj1 ",obj1)
         return false
     } else {
         for (var key in obj1) {
           if (obj1.hasOwnProperty(key)) {
             if (!exports.variables_are_similar(obj1[key],obj2[key]) ) { 
-                console.log("objects_are_similar NOT -Mismatch comparing ",key,obj1[key],obj2[key])
+                //onsole.log("objects_are_similar NOT -Mismatch comparing ",key,obj1[key],obj2[key])
                 return false;
             }
             delete obj2[key]

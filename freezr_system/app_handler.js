@@ -323,7 +323,7 @@ exports.putData = function (req, res){
                 } else if (!file_handler.valid_path_extension(fileParams.dir)) {
                     cb(app_err("invalid folder name"));
                 } else {
-                    data_object_id = data_object_id+file_handler.sep()+fileParams.name;
+                    data_object_id = data_object_id+"/"+fileParams.name;
                     file_handler.writeUserFile(fileParams.dir, fileParams.name, req.body.options, data_model, req, cb);       
                 }
             } else if (!data_model || !data_model.make_data_id || !data_model.make_data_id.from_field_names) {

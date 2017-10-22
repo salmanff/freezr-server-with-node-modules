@@ -12,14 +12,20 @@ var custom_environment = file_handler.existsSyncLocalSystemAppFile(file_handler.
 var unifiedDb;
 
 exports.dbConnectionString = function(appName) { 
-    if (freezr_environment && freezr_environment.dbParams && freezr_environment.dbParams.host && freezr_environment.dbParams.host=="localhost"  ) { 
-        //onsole.log("returning "+'localhost:27017/'+freezr_environment.dbParams.unifiedDbName? freezr_environment.dbParams.unifiedDbName: appName)
-        return 'localhost:27017/'+(freezr_environment.dbParams.unifiedDbName? freezr_environment.dbParams.unifiedDbName: appName);
+    
+    var connectionString = ""
+    
+    if (false && freezr_environment && freezr_environment.dbParams && freezr_environment.dbParams.host && freezr_environment.dbParams.host=="localhost"  ) { 
+        return 'localhost/'+(freezr_environment.dbParams.unifiedDbName? freezr_environment.dbParams.unifiedDbName: appName);
     } else if (freezr_environment && freezr_environment && freezr_environment.dbParams) {
-        //onsole.log("returning "+freezr_environment.dbParams.user + ":"+freezr_environment.dbParams.pass + "@"+freezr_environment.dbParams.host + ":"+freezr_environment.dbParams.port + "/"+ ((freezr_environment.dbParams && freezr_environment.dbParams.unifiedDbName)? freezr_environment.dbParams.unifiedDbName:appName)  +(freezr_environment.dbParams.addAuth? '?authSource=admin':''))
-      return freezr_environment.dbParams.user + ":"+freezr_environment.dbParams.pass + "@"+freezr_environment.dbParams.host + ":"+freezr_environment.dbParams.port + "/"+ ((freezr_environment.dbParams && freezr_environment.dbParams.unifiedDbName)? freezr_environment.dbParams.unifiedDbName:appName)  +(freezr_environment.dbParams.addAuth? '?authSource=admin':'');
-    } 
-    return null;
+        if (freezr_environment.dbParams.user) connectionString+= freezr_environment.dbParams.user + ":"+freezr_environment.dbParams.pass + "@"
+        connectionString += freezr_environment.dbParams.host + (freezr_environment.dbParams.host=="localhost"? "" : (":"+freezr_environment.dbParams.port) )
+        connectionString += "/"+ ((freezr_environment.dbParams && freezr_environment.dbParams.unifiedDbName)? freezr_environment.dbParams.unifiedDbName:appName)  +(freezr_environment.dbParams.addAuth? '?authSource=admin':'');
+        return connectionString
+    } else {
+        console.log("ERROR - NO DB HOST")
+        return null;
+    }
 }
 
 exports.resetFreezrEnvironment = function(env) {
@@ -66,8 +72,8 @@ exports.check_db = function (callback) {
 
         // 2. create collections for users, installed_app_list, user_installed_app_list, user_devices, permissions.
         function (theclient, cb) {
-          temp_admin_db = theclient;
-          temp_admin_db.collection(get_full_coll_name('info_freezer_admin',"params"), cb);
+            temp_admin_db = theclient;
+            temp_admin_db.collection(get_full_coll_name('info_freezer_admin',"params"), cb);
         },
 
         function (the_coll, cb) {

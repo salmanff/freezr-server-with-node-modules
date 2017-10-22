@@ -14,7 +14,7 @@ exports.generateAdminPage = function (req, res) {
     helpers.log(req, "adminPage: "+req.url)
     // todo - distibguish http & https
     //onsole.log("??? req.headers.referer.split(':')[0]"+req.headers.referer);
-    //console.log("??? req.secure "+req.secure)
+    //onsole.log("??? req.secure "+req.secure)
     //onsole.log("??? req.protocol"+req.protocol)
     var initial_query = '', script_files=null; css_files= null;  page_title= null, initial_query_func= null, page_url = null, other_variables=null;
     var isPublicPage = helpers.startsWith(req.url,"/admin/public")
@@ -214,7 +214,7 @@ exports.first_registration = function (req, callback) {
 
     var temp_environment = JSON.parse(JSON.stringify(req.freezr_environment));
     if (req.body.externalDb && Object.keys(req.body.externalDb).length > 0 && req.body.externalDb.constructor === Object) temp_environment.dbParams = req.body.externalDb;  
-    temp_environment.dbParams.unifiedDbName = req.body.unifiedDbName || null;
+    temp_environment.dbParams.unifiedDbName = req.body.unifiedDbName? (req.body.unifiedDbName.replace(/\ /g,"") ) : null;
     if (temp_environment.dbParams && !temp_environment.dbParams.pass &&  
         temp_environment.dbParams.user /* in case user is deleting all dbparams */ && 
         req.freezr_environment.dbParams.pass) 
@@ -225,7 +225,6 @@ exports.first_registration = function (req, callback) {
         req.freezr_environment.userDirParams.access_token )
         temp_environment.userDirParams.access_token = req.freezr_environment.userDirParams.access_token;
 
-    
     if (req.freezr_environment.freezr_is_setup && !req.session.logged_in_user_id) {
         callback(reg_auth_fail("System is already initiated.", "auth-initedAlready"));
     } else if (!uid) 
@@ -369,7 +368,6 @@ exports.first_registration = function (req, callback) {
 
             function (cb) { 
                 if (freezr_environment.userDirParams && freezr_environment.userDirParams.name) {
-                    console.log("writing to env")
                     file_handler.writeTextToUserFile (null, "freezr_environment.js", "exports.params=" + JSON.stringify(freezr_environment), {fileOverWrite:true}, null, null, freezr_environment, function (err) {
                         if(err) { 
                             helpers.warning("admin_handler", exports.version, "first_registration", "error_writing_environment_to_external_fs "+err );

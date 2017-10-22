@@ -24,7 +24,6 @@ var showDevOptions = function(){
   if (doShowDevoptions && freezr_user_is_admin) {
     document.getElementById("addFileTable").style.display="block";
     document.getElementById("button_showDevOptions").style.display="none";
-    // Go through and add all other options
   }
 }
 
@@ -64,10 +63,25 @@ var buttons = {
     var fileInput = document.getElementById('app_zipfile2');
     var file = (fileInput && fileInput.files)? fileInput.files[0]: null;
 
+    console.log(file.name+" size "+file.size)
+
+
+    var parts = file.name.split('.');
+    if (endsWith(parts[(parts.length-2)],"-master")) parts[(parts.length-2)] = parts[(parts.length-2)].slice(0,-7);
+    if (startsWith((parts[(parts.length-2)]),"_v_")) {
+        parts.splice(parts.length-2,2);
+    } else {
+        parts.splice(parts.length-1,1);
+    }
+    app_name = parts.join('.');
+    app_name = app_name.split(' ')[0];
+
     if (!fileInput || !file) {
       showError("Please Choose a file first.");      
     } else if (file.name.substr(-4) != ".zip") {
-      document.getElementById('errorBox').innerHTML="file uploaded must be a zipped file.";
+      document.getElementById('errorBox').innerHTML="The app file uploaded must be a zipped file. (File name represents the app name.)";
+    } else if (!valid_app_name(app_name)) {
+      document.getElementById('errorBox').innerHTML="Invalid app name - please make sure the zip file conforms to freezr app name guidelines";
     } else {
       var uploadData = new FormData();
       uploadData.append('file', file);
@@ -75,7 +89,8 @@ var buttons = {
       var theEl = document.getElementById(file.name);
       if (!theEl || confirm("This app exists. Do you want to replace it with the uplaoded files?")) {
         freezer_restricted.menu.resetDialogueBox(true);
-          freezer_restricted.connect.send(url, uploadData, function(returndata) {
+        if (file.size > 500000) document.getElementById("freezer_dialogueInnerText").innerHTML = "<br/>You are uploading a large file. This might take a little while. Please be patient.<br/>"+document.getElementById("freezer_dialogueInnerText").innerHTML
+        freezer_restricted.connect.send(url, uploadData, function(returndata) {
             var d = freezr.utils.parse(returndata);
             if (d.err) {
               document.getElementById("freezer_dialogueInnerText").innerHTML = "<br/>"+JSON.stringify(d.err);
@@ -88,6 +103,7 @@ var buttons = {
   },
   'updateApp': function(args) {
     userHasIntiatedAcions = true;
+    window.scrollTo(0, 0);
     freezer_restricted.menu.resetDialogueBox(true);
     document.getElementById("freezer_dialogue_closeButt").style.display="none";
     document.getElementById("freezer_dialogue_homeButt").style.display="none";
@@ -132,6 +148,8 @@ var buttons = {
               for (var i=0; i<imglist.length; i++) {
                   imglist[i].addEventListener("error", imglistener )
               }
+              console.log("LEN IS "+document.getElementsByClassName("dev_option").length)
+              if (doShowDevoptions && freezr_user_is_admin) Array.prototype.forEach.call(document.getElementsByClassName("dev_option"), function(el, index) {el.style.display="block"; console.log(el.id)});
             })
           }
       });
@@ -210,4 +228,45 @@ var showError = function(errorText) {
     timer = setTimeout(function () {showError();
   },5000)}
 }
+
+var valid_app_name = function(app_name) {
+        if (!app_name) return false;
+        if (app_name.length<1) return false;
+        if (!valid_filename(app_name)) return false;
+        if (starts_with_one_of(app_name, ['.','-','\\','system'] )) return false;
+        if (SYSTEM_APPS.indexOf(app_name)>-1) return false;
+        if (app_name.indexOf("_") >-1) return false;
+        if (app_name.indexOf(" ") >-1) return false;
+        if (app_name.indexOf("$") >-1) return false;
+        if (app_name.indexOf('"') >-1) return false;
+        if (app_name.indexOf("/") >-1) return false;
+        if (app_name.indexOf("\\") >-1) return false;
+        if (app_name.indexOf("{") >-1) return false;
+        if (app_name.indexOf("}") >-1) return false;
+        if (app_name.indexOf("..") >-1) return false;
+        var app_segements = app_name.split('.');
+        if (app_segements.length <3) return false;
+        return true;
+    }
+valid_filename = function (fn) {
+        var re = /[^\.a-zA-Z0-9-_ ]/;
+        // @"^[\w\-. ]+$" http://stackoverflow.com/questions/11794144/regular-expression-for-valid-filename
+        return typeof fn == 'string' && fn.length > 0 && !(fn.match(re) );
+    };
+var endsWith = function (longertext, checktext) {
+        if (!checktext || !longertext || checktext.length > longertext.length) {return false} else {
+        return (checktext == longertext.slice((longertext.length-checktext.length)));}
+    }
+var startsWith = function(longertext, checktext) {
+        if (!longertext || !checktext || !(typeof longertext === 'string')|| !(typeof checktext === 'string')) {return false} else 
+        if (checktext.length > longertext.length) {return false} else {
+        return (checktext == longertext.slice(0,checktext.length));}
+    }
+var starts_with_one_of = function(thetext, stringArray) {
+        for (var i = 0; i<stringArray.length; i++) {
+            if (startsWith(thetext,stringArray[i])) return true;
+        }
+        return false;
+    }
+const SYSTEM_APPS = ["info.freezr.account","info.freezr.admin","info.freezr.public","info.freezr.permissions","info.freezr.posts"];
 

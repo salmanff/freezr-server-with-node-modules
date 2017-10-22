@@ -190,11 +190,12 @@ freezr.utils.getConfig = function(callback) {
   //onsole.log("fileListUpdate Sending to "+url)
   freezer_restricted.connect.read(url, null, callback);
 }
-freezr.utils.ping = function(callback) {
+freezr.utils.ping = function(options, callback) {
   // pings freezr to get back logged in data
+  // options can be password and app_name
   var url = '/v1/account/ping';
-  //if (app_name) url+="/"+app_name;
-  freezer_restricted.connect.read(url, null, callback);
+  freezer_restricted.connect.read(url, options, callback);
+
 }
 freezr.utils.logout = function() {
   if (freezr.app.isWebBased) {
@@ -324,7 +325,6 @@ freezer_restricted.permissions= {};
   	    }
   	    url = url  + '?' + query.join('&');
       }
-
       freezer_restricted.connect.send(url, null, callback, 'GET', null)
   };
   freezer_restricted.connect.send = function (url, postData, callback, method, contentType) {
@@ -501,7 +501,6 @@ freezer_restricted.permissions= {};
 
   }
   freezer_restricted.menu.resetDialogueBox = function(isAdminPage, addText) {
-    console.log("resetting Dialogue box")
     var innerText = (document.getElementById('freezer_dialogueInnerText'));
     if (innerText) innerText.innerHTML= (addText? ("<br/><div>"+addText+"</div>"): "" )+'<br/><div align="center">.<img src="'+(freezr.app.isWebBased? "/app_files/info.freezr.public/static/ajaxloaderBig.gif": "./freezrPublic/static/ajaxloaderBig.gif")+'"/></div>';
     var dialogueEl = document.getElementById('freezer_dialogueOuter');
@@ -536,21 +535,37 @@ freezer_restricted.permissions= {};
       cont+= '<div><span class="appLogin_name"></span><span class="freezer_butt" id="freezr_server_pingprelogin_butt">next</span></div>'
     cont+= '</div>'
     cont+= '<div id="freezr_server_login_name_area" style="display:none">'
-     cont+= '<div><span class="appLogin_name" style="padding-right:69px;">User Name: </span> <div contenteditable class="appLogin_input" id="freezr_login_username" >'+(freezr_user_id? freezr_user_id:'')+'</div></div>'
-      cont+= '<div><span class="appLogin_name"style="padding-right:79px;">Password: </span><div contenteditable class="appLogin_input" id="freezr_login_pw" ></div></div>'
+     cont+= '<div id="freezr_login_username_area"><span class="appLogin_name" style="padding-right:69px;">User Name: </span> <div contenteditable class="appLogin_input" id="freezr_login_username" >'+(freezr_user_id? freezr_user_id:'')+'</div></div>'
+      cont+= '<div><span class="appLogin_name"style="padding-right:79px;">Password: </span><input contenteditable class="appLogin_input" id="freezr_login_pw" type="password"></input></div>'
       cont+= '<div><span class="appLogin_name"></span><span class="freezer_butt" id="freezr_server_login_butt">log in to freezr</span></div>'
     cont+= '</div>'
     cont+= '</div>'
     divToInsertIn.innerHTML = cont;
     document.getElementById('freezr_server_login_butt').onclick = function(){
+      var existing_id = (freezr_user_id? true:false )
       freezr_user_id = document.getElementById('freezr_login_username').innerText;
-      var password = document.getElementById('freezr_login_pw').innerText;
+      var password = document.getElementById('freezr_login_pw').value;
         //onsole.log("logging in "+freezr_user_id+"-"+password+". server "+freezr_server_address)
       if (freezr_user_id && freezr_user_id.length>0 && password && password.length>0 && freezr_server_address && freezr_server_address.length > 0 ) {
 
         var theInfo = { "user_id": freezr_user_id, "password": password, 'login_for_app_name':freezr_app_name};
         if (!freezr_app_name) {
             alert("developer error: variable freezr_app_name needs to be defined");
+        } else if (existing_id) {
+            freezr.utils.ping(theInfo, function(resp) {
+              resp = freezr.utils.parse(resp);
+              if (resp.error) {
+                document.getElementById('freezer_dialogueInnerText').innerHTML= "Error validating your login credentials. "+(resp.message? resp.message: resp.error);
+              } else if (resp.login_for_app_name == freezr_app_name) {
+                freezer_restricted.menu.close()
+                freezr_app_code = resp.source_app_code;
+                freezr_server_version = resp.freezr_server_version;
+                freezr.app.offlineCredentialsExpired = false;
+                freezr.app.loginCallback? freezr.app.loginCallback(resp): console.log("Warning: Set freezr.app.loginCallback to handle log in response: " + JSON.stringify(resp));
+              } else {
+                  document.getElementById('freezer_dialogueInnerText').innerHTML= 'developper error - loggedin_app_name '+resp.login_for_app_name+' is not correct.';
+              }
+           }) 
         } else {
           freezer_restricted.menu.resetDialogueBox();
           freezer_restricted.connect.ask("/v1/account/applogin", theInfo, function(resp) {
@@ -583,22 +598,23 @@ freezer_restricted.permissions= {};
     document.getElementById('freezr_server_pingprelogin_butt').onclick= function (evt) {
       freezr_server_address = document.getElementById('freezr_server_name_input').innerText;
       if (freezr_server_address.slice(freezr_server_address.length-1)=="/")  freezr_server_address = freezr_server_address.slice(0,freezr_server_address.length-1);
-      freezr.utils.ping(function(resp) {
-          resp = freezr.utils.parse(resp);
-          if(resp.error) {
-            document.getElementById("freezr_server_server_name_area").innerHTML="The freezr is not available. Please try later.";
-          } else if (resp.logged_in) {
-            document.getElementById("freezr_server_server_name_area").innerHTML="You are already logged in to this freezr as "+resp.user_id
-            freezr_user_id= resp.user_id;
-            freezr_app_code = resp.source_app_code;
-            freezr_server_version = resp.freezr_server_version;
-            freezr.app.offlineCredentialsExpired = false;
-            freezr.app.loginCallback? freezr.app.loginCallback(resp): console.log("Warning: Set freezr.app.loginCallback to handle log in response: " + JSON.stringify(resp));
-          } else {
-            document.getElementById("freezr_server_server_name_area").innerHTML="Enter your user name and password to log into "+freezr_server_address;
-            document.getElementById("freezr_server_login_name_area").style.display="block";
-            document.getElementById("freezr_login_username").focus();
-          }
+      document.getElementById("freezr_server_server_name_area").innerHTML='<br/><div align="center">.<img src="'+(freezr.app.isWebBased? "/app_files/info.freezr.public/static/ajaxloaderBig.gif": "./freezrPublic/static/ajaxloaderBig.gif")+'"/></div>';
+      freezr.utils.ping(null, function(resp) {
+        resp = freezr.utils.parse(resp);
+        if(resp.error) {
+          document.getElementById("freezr_server_server_name_area").innerHTML="The freezr is not available. Please try later.";
+        } else if (resp.logged_in) {
+          document.getElementById("freezr_server_server_name_area").innerHTML="You are already logged in to this freezr as "+resp.user_id+". Just enter your password."
+          document.getElementById('freezr_login_username').innerText = resp.user_id;
+          freezr_user_id = resp.user_id;
+          document.getElementById("freezr_server_login_name_area").style.display="block";
+          document.getElementById("freezr_login_username_area").style.display="none";
+          document.getElementById("freezr_login_pw").focus();
+        } else {
+          document.getElementById("freezr_server_server_name_area").innerHTML="Enter your user name and password to log into "+freezr_server_address;
+          document.getElementById("freezr_server_login_name_area").style.display="block";
+          document.getElementById("freezr_login_username").focus();
+        }
       }, freezr_app_name)
     }
     document.getElementById('freezr_login_username').onkeypress= function (evt) {
@@ -686,6 +702,9 @@ freezer_restricted.permissions= {};
         var acceptButt = document.createElement('div');
         acceptButt.className = buttText? "freezer_butt": "freezer_butt_pressed";
         acceptButt.id = "freezer_butt_"+num;
+
+        var other_app = permission_object.requestee_app != permission_object.requestor_app;
+        var access_word = other_app? "access and share":"share";
         
         acceptButt.innerHTML= buttText;
         if (buttText) {
@@ -693,16 +712,19 @@ freezer_restricted.permissions= {};
         }
         var detailText = document.createElement('div');
         detailText.className="freezer_butt_Text"
+
+        detailText.innerHTML  = other_app? ("The app, <b style='color:purple;'>"+permission_object.requestor_app+"</b>,") : "This app"
+        detailText.innerHTML += (buttText=="Accept"? " wants to be able to " : " is able to ")
         if (type == "db_query") {
-          detailText.innerHTML = (buttText=="Accept"? "The app wants to share ":"The app gives access to ") + ": "+(permission_object.return_fields? (permission_object.return_fields.join(", ")) : "ERROR") + " with "+permission_object.sharable_groups+"<br/>";
+          detailText.innerHTML += access_word + ": "+(permission_object.return_fields? (permission_object.return_fields.join(", ")) : "ERROR") + " with the following groups: "+permission_object.sharable_groups.join(" ")+".<br/>";
         } else if (type == "folder_delegate") {
-          detailText.innerHTML = (buttText=="Accept"? "The app wants to be able to share " : "The app is able to share ") + " all files in these folders : "+ (permission_object.sharable_folders? permission_object.sharable_folders.join(", "):"ERROR" ) +" with "+permission_object.sharable_groups+"<br/>";
+          detailText.innerHTML +=  access_word + " all files in these folders : "+ (permission_object.sharable_folders? permission_object.sharable_folders.join(", "):"ERROR" ) +" with "+permission_object.sharable_groups.join(" ")+".<br/>";
         } else if (type == "field_delegate") {
-          detailText.innerHTML = (buttText=="Accept"? "The app wants to be able to share ":"The app is able to share ")+ " all data records from the collection : "+(permission_object.collection? permission_object.collection:"ERROR")+" according to these fields:"+ (permission_object.sharable_fields? permission_object.sharable_fields.join(", "):"ERROR" ) +" with "+permission_object.sharable_groups+"<br/>";
+          detailText.innerHTML += access_word+ " all data records from the collection : "+(permission_object.collection? permission_object.collection:"ERROR")+" according to these fields:"+ (permission_object.sharable_fields? permission_object.sharable_fields.join(", "):"ERROR" ) +" with "+permission_object.sharable_groups.join(" ")+".<br/>";
         } else if (type == "object_delegate") {
-          detailText.innerHTML = (buttText=="Accept"? "The app wants to be able to share ":"The app is able to share ")+ " individual data records with "+permission_object.sharable_groups+"<br/>";
+          detailText.innerHTML += access_word+ " individual data records with the following groups:  "+(permission_object.sharable_groups? permission_object.sharable_groups.join(" "): "None")+".<br/>";
         } else if (type == "outside_scripts") {
-          detailText.innerHTML = (buttText=="Accept"? "The app wants to be able to use this scripts from the web: ":"The app is able to use this script from the web: ")+permission_object.script_url+"<br/>This script can take ALL YOUR DATA and evaporate it into the cloud.";
+          detailText.innerHTML = (buttText=="Accept"? "This app wants to ":"This app can ")+" access the following scripts from the web: "+permission_object.script_url+"<br/>This script can take ALL YOUR DATA and evaporate it into the cloud.";
         }
         var boxOuter = document.createElement('div');
         boxOuter.appendChild(acceptButt);

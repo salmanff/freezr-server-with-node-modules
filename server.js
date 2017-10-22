@@ -3,7 +3,7 @@ const VERSION = "0.0.121";
 
 
 // INITALISATION / APP / EXPRESS
-console.log("=========================  VERSION August 2017 - ouath added  =======================")
+console.log("=========================  VERSION October 2017  =======================")
 const LISTEN_TO_LOCALHOST_ON_LOCAL = true; // for local development - set to true to access local site at http://localhost:3000, and false to access it at your local ip address - eg http://192.168.192.1:3000 (currently not working)
 
 
@@ -238,7 +238,6 @@ function addVersionNumber(req, res, next) {
         app.get ('/account/:sub_page', requireUserRights, account_handler.generateAccountPage);
 
         app.get('/v1/account/ping', addVersionNumber, account_handler.ping);
-        //app.get('/v1/account/ping/:app_name', addVersionNumber, account_handler.ping);
         app.post('/v1/account/login', account_handler.login);
         app.post('/v1/account/applogin', account_handler.login);
         app.post('/v1/account/applogout', account_handler.logout);

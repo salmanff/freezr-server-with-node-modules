@@ -183,16 +183,38 @@ exports.ping = function (req, res) {
     // /v1/account/ping 
     if (!req.session.logged_in_user_id) {
         helpers.send_success(res, { logged_in: false});
-        /*
-    } else if (req.params.app_name) {
-        freezr_db.get_or_set_user_app_code (req.session.logged_in_user_id,req.params.app_name, function(err,results,cb){
-            if (err || !results.app_code) {
-                helpers.send_success(res, { logged_in: true, 'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version, 'error':"error_getting_app_code"});        
+    } else if (req.query.login_for_app_name) {
+        // also needs req.query.password, which has to be checked
+        // check 
+        async.waterfall([
+            // 1. get user
+            function (cb) {
+                freezr_db.user_by_user_id(req.session.logged_in_user_id, cb);
+            },
+
+            // 2. check the password
+            function (user_json, dummy_cb, cb) {
+                var u = new User(user_json);
+                if (u.check_passwordSync(req.query.password)) {
+                    cb(null);
+                } else {
+                    cb(helpers.auth_failure("account_handler.js",exports.version,"ping","Wrong password"));
+                }
+            },
+
+            // 3. get code
+            function(cb){
+                freezr_db.get_or_set_user_app_code (req.session.logged_in_user_id,req.query.login_for_app_name, cb);
+            }        
+        ],
+        function (err, results) {
+            //onsole.log("got source_app_code? "+results.source_app_code)
+            if (err || !results || !results.app_code) {
+                helpers.send_success(res, { logged_in: true, 'login_for_app_name':req.query.login_for_app_name,  'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version, 'error':"error_getting_app_code"});        
             } else {
-                 helpers.send_success(res, { logged_in: true, 'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version, 'source_app_code':results.app_code});       
+                 helpers.send_success(res, { logged_in: true, 'login_for_app_name':req.query.login_for_app_name,  'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version, 'source_app_code':results.app_code});       
             }
-        })
-    */
+        });
     } else {
         helpers.send_success(res, { logged_in: true, 'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version});
     } 
@@ -368,11 +390,15 @@ exports.add_uploaded_app_zip_file = function (req, res) {
             }
             app_name = parts.join('.');
             app_name = app_name.split(' ')[0];
-            flags = new Flags({'app_name':app_name,'didwhat':'installed'});
-
-            if (helpers.system_apps.indexOf(app_name)>-1  || !helpers.valid_app_name(app_name)){
+            
+            if (app_name.length<1) {
+                cb(helpers.invalid_data("app name missing - that is the name of the app zip file name before any spaces.", "account_handler", exports.version, "add_uploaded_app_zip_file"));
+            } else if (!helpers.valid_app_name(app_name)) {    
+                cb(helpers.invalid_data("app name: "+app_name, "account_handler", exports.version, "add_uploaded_app_zip_file"));
+            } else if (helpers.system_apps.indexOf(app_name)>-1  || !helpers.valid_app_name(app_name)){
                 cb(helpers.invalid_data("app name not allowed: "+app_name, "account_handler", exports.version, "add_uploaded_app_zip_file"));
-            } else {        
+            } else {    
+                flags = new Flags({'app_name':app_name,'didwhat':'installed'});    
                 cb(null);
             }
         },
@@ -389,8 +415,8 @@ exports.add_uploaded_app_zip_file = function (req, res) {
 
         // 5a. Get and check app_config (populate app_version and app_display_name and permissons)
         function (cb) {
-                file_handler.async_app_config(app_name, req.freezr_environment,cb);
-            },
+            file_handler.async_app_config(app_name, req.freezr_environment,cb);
+        },
         // 5b. make sure all data exits
         function (app_config, cb) {
             if (app_config)  {
@@ -419,12 +445,7 @@ exports.add_uploaded_app_zip_file = function (req, res) {
         // 7. See if app exists
         function (newflags, dummy, cb) {
             if (newflags && Object.keys(newflags).length > 0) flags = newflags;
-
-            if (helpers.valid_app_name(app_name)) {    
-                freezr_db.get_app_info_from_db(app_name, cb);
-            } else {
-                cb(helpers.invalid_data("app name: "+app_name, "account_handler", exports.version, "add_uploaded_app_zip_file"));
-            }
+            freezr_db.get_app_info_from_db(app_name, cb);
         },
 
         // 8. If app already exists, flag it as an update
@@ -492,7 +513,7 @@ exports.appMgmtActions  = function (req,res) /* deleteApp updateApp */ {
                 if (err) {
                     helpers.send_internal_err_failure(res, "freezr_db", freezr_db.version, "try_to_delete_app", "Internal error trying to delete app. App was not deleted." ) 
                 } else {
-                    console.log("success is deleting app")
+                    console.log("success in deleting app")
                     helpers.send_success(res, {success: true})
                 }
             });
@@ -819,7 +840,7 @@ removeAllAccessibleObjects = function(user_id, requestor_app, requestee_app, per
                                     },
                                     function (err) {
                                         if (err) {
-                                            console.log("Got an err in 4a within object retrieavel of removeAllAccessibleObjects "+JSON.stringify(err))
+                                            console.log("Got an err in (a) within object retrieavel of removeAllAccessibleObjects "+JSON.stringify(err))
                                             warning_list.push("'unkown_error_removing_accessible_indiccator': "+JSON.stringify(err));
                                         } 
                                         cb2(null)
@@ -838,7 +859,7 @@ removeAllAccessibleObjects = function(user_id, requestor_app, requestee_app, per
         },
         function (err) {
             if (err) {
-                console.log("Got an err in 4b within collection getting of removeAllAccessibleObjects "+JSON.stringify(err))
+                console.log("Got an err within collection getting of removeAllAccessibleObjects "+JSON.stringify(err))
                 flags.add('major_warnings','data_object_update',{err:err,'function':'removeAllAccessibleObjects','async-part':4, 'message':'uknown error updating data_object.'})
             } 
             cb(null)
@@ -890,13 +911,13 @@ exports.all_app_permissions = function(req, res) {
                 //
                 var app_config_permissions = (app_config && app_config.permissions && Object.keys(app_config.permissions).length > 0)? JSON.parse(JSON.stringify( app_config.permissions)) : null;
                 var permission_name="", schemad_permission;
-
+                
                 for (var i=0; i<all_userAppPermissions.length; i++) {
+
                     aPermission = all_userAppPermissions[i];
+                    
                     permission_name = all_userAppPermissions[i].permission_name;
 
-                    //onsole.log("app_config_permissions "+JSON.stringify(app_config_permissions));
-                    
                     if (aPermission.requestor_app !=requestee_app) {
                         // Other apps have requested permission - just add them
                         // Need to check changes here.
@@ -947,7 +968,6 @@ exports.all_app_permissions = function(req, res) {
             if (err) {
                 helpers.send_failure(res, err,"account_handler", exports.version,"all_app_permissions"); 
             } else {  
-                //onsole.log("all returnPermissions "+JSON.stringify(returnPermissions))
                 helpers.send_success(res, returnPermissions);
             }
         });
