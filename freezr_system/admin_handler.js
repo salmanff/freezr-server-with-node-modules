@@ -62,6 +62,10 @@ exports.generateAdminPage = function (req, res) {
                 temp_environment.dbParams.pass = null;
                 temp_environment.dbParams.has_password = true;
             };
+            if (temp_environment.dbParams && temp_environment.dbParams.connectionString ){
+                temp_environment.dbParams.connectionString = null;
+                temp_environment.dbParams.has_password = true;
+            };
             if (temp_environment.userDirParams && temp_environment.userDirParams.access_token) {
                 temp_environment.userDirParams.access_token = null;
                 temp_environment.userDirParams.has_access_token = true;     
@@ -215,10 +219,11 @@ exports.first_registration = function (req, callback) {
     var temp_environment = JSON.parse(JSON.stringify(req.freezr_environment));
     if (req.body.externalDb && Object.keys(req.body.externalDb).length > 0 && req.body.externalDb.constructor === Object) temp_environment.dbParams = req.body.externalDb;  
     temp_environment.dbParams.unifiedDbName = req.body.unifiedDbName? (req.body.unifiedDbName.replace(/\ /g,"") ) : null;
-    if (temp_environment.dbParams && !temp_environment.dbParams.pass &&  
+    if (temp_environment.dbParams && !temp_environment.dbParams.connectionString && !temp_environment.dbParams.pass &&  
         temp_environment.dbParams.user /* in case user is deleting all dbparams */ && 
         req.freezr_environment.dbParams.pass) 
         temp_environment.dbParams.pass = req.freezr_environment.dbParams.pass;
+    //if (temp_environment.dbParams && temp_environment.dbParams.connectionString)
     temp_environment.userDirParams = req.body.externalFs; 
     if (!temp_environment.userDirParams && !temp_environment.userDirParams.access_token &&
         temp_environment.userDirParams.name &&
@@ -276,6 +281,7 @@ exports.first_registration = function (req, callback) {
             function (cb) {
                 freezr_db.resetFreezrEnvironment(temp_environment);
 
+                console.log("set env : "+JSON.stringify(temp_environment))
                 freezr_db.init_admin_db(function (err, results) { // in case it has not been inited (and to make sure it exists)
                     if (err) {
                         // reset freezr environment

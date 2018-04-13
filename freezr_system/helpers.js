@@ -31,6 +31,7 @@ exports.log = function(req, message) {
         if (app_name.indexOf("$") >-1) return false;
         if (app_name.indexOf('"') >-1) return false;
         if (app_name.indexOf("/") >-1) return false;
+        if (app_name.indexOf("@") >-1) return false;
         if (app_name.indexOf("\\") >-1) return false;
         if (app_name.indexOf("{") >-1) return false;
         if (app_name.indexOf("}") >-1) return false;
@@ -43,6 +44,7 @@ exports.log = function(req, message) {
         if (!db_name) return false;
         if (db_name.indexOf("$") >-1) return false;
         if (db_name.indexOf('"') >-1) return false;
+        if (db_name.indexOf("@") >-1) return false;
         if (db_name.indexOf("/") >-1) return false;
         if (db_name.indexOf("\\") >-1) return false;
         if (db_name.indexOf(" ") >-1) return false;
@@ -64,7 +66,7 @@ exports.log = function(req, message) {
       return (name.indexOf(" ") < 0 && name.indexOf("/") < 0  && name.indexOf(" ") < 0 )
     }
     exports.valid_collection_name = function(collection_name,is_file_record)  {
-        if (collection_name.indexOf("_")>-1 || collection_name.indexOf("/")>-1 || collection_name.indexOf(" ")>-1  || collection_name.indexOf(".")>-1 || (exports.starts_with_one_of(collection_name, ['.','-','\\',"system"] )) ) {
+        if (collection_name.indexOf("_")>-1 || collection_name.indexOf("/")>-1 || collection_name.indexOf(" ")>-1  ||collection_name.indexOf("@")>-1  || collection_name.indexOf(".")>-1 || (exports.starts_with_one_of(collection_name, ['.','-','\\',"system"] )) ) {
             return false
         } else if (reserved_collection_names.indexOf(collection_name)>-1){
             return false;

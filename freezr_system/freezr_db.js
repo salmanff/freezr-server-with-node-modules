@@ -66,7 +66,7 @@ function user_by_field (field, value, callback) {
 }
 
 // USERS DB -  INTERACTIONS
-exports.add_user = function (valid_unique_user_id, password, valid_email, full_name, isAdmin, creator, callback) {
+exports.add_user = function (valid_unique_user_id, password, valid_email, full_name, isAdmin, owner, callback) {
     async.waterfall([
         // validate params
         function (cb) {
@@ -74,8 +74,8 @@ exports.add_user = function (valid_unique_user_id, password, valid_email, full_n
                 cb(helpers.missing_data("user_id", "freezr_db", exports.version,"add_user"));
             else if (!password)
                 cb(helpers.missing_data("password", "freezr_db", exports.version,"add_user"));
-            else if (!creator)
-                cb(helpers.missing_data("creator", "freezr_db", exports.version,"add_user"));
+            else if (!owner)
+                cb(helpers.missing_data("owner", "freezr_db", exports.version,"add_user"));
             else
                 bcrypt.hash(password, 10, cb);
         },
@@ -90,7 +90,7 @@ exports.add_user = function (valid_unique_user_id, password, valid_email, full_n
                 full_name: full_name,
                 isAdmin: isAdmin,
                 password: hash,
-                _creator:creator,
+                _owner:owner,
                 _date_Created: new Date().getTime(),
                 _date_Modified: new Date().getTime(),
                 deleted: false
@@ -175,7 +175,7 @@ exports.set_or_update_user_device_code = function (device_code, user_id,login_fo
                     'device_code':device_code, 
                     'user_id':user_id,
                     'login_for_app_name':login_for_app_name,
-                    _creator: user_id,
+                    _owner: user_id,
                     _date_Created: new Date().getTime(),
                     _date_Modified: new Date().getTime()
                 };
@@ -295,7 +295,7 @@ exports.get_or_set_user_app_code = function (user_id,app_name, callback){
                     app_code: new_app_code,
                     app_name: app_name,
                     app_delivered:false,
-                    _creator: user_id,
+                    _owner: user_id,
                     _date_Created: new Date().getTime(),
                     _date_Modified: new Date().getTime(),
                     removed: false
@@ -356,7 +356,7 @@ exports.update_permission_records_from_app_config = function(app_config, app_nam
                     // 2. for each permission, get or set a permission record
                     function (cb) {
                         async.forEach(queried_schema_list, function (schemad_permission, cb) { // get perms 
-                            exports.permission_by_creator_and_permissionName(aUser.user_id, 
+                            exports.permission_by_owner_and_permissionName(aUser.user_id, 
                                 schemad_permission.requestor_app, 
                                 schemad_permission.requestee_app, 
                                 schemad_permission.permission_name, 
@@ -437,7 +437,7 @@ exports.add_app = function (app_name, app_display_name, user_id, callback) {
                 _id: app_name,
                 app_name: app_name,
                 display_name: app_display_name,
-                _creator:user_id,
+                _owner:user_id,
                 _date_Created: new Date().getTime(),
                 _date_Modified: new Date().getTime()
             };
@@ -479,7 +479,7 @@ exports.all_user_apps = function (user_id, sort_field, sort_desc, skip, count, c
         skip = skip? skip:0;
         count = count? count:ARBITRARY_COUNT;
         if (db_main && db_main.user_installed_app_list){
-                db_main.user_installed_app_list.find({'_creator':user_id})
+                db_main.user_installed_app_list.find({'_owner':user_id})
                     .sort(sort)
                     .limit(count)
                     .skip(skip)
@@ -519,7 +519,7 @@ exports.remove_user_records = function (user_id, app_name, callback) {
 
                         function (theCollection, cb2) {
                             this_collection = theCollection;
-                            this_collection.remove({'_creator':user_id}, {safe: true}, cb2);
+                            this_collection.remove({'_owner':user_id}, {safe: true}, cb2);
                         },
 
                         function (results, cb2)  {// remvoal results 
@@ -580,7 +580,7 @@ exports.try_to_delete_app = function (user_id, app_name, env_params, callback) {
 
         // remove permissions
         function(cb) {
-            db_main.permissions.remove({_creator:user_id, requestor_app:app_name}, {safe: true}, cb);
+            db_main.permissions.remove({_owner:user_id, requestor_app:app_name}, {safe: true}, cb);
         },
 
         // remove app directory
@@ -652,7 +652,7 @@ exports.create_query_permission_record = function (user_id, requestor_app, reque
         description: permission_object.description? permission_object.description: permission_name,
         granted: false, denied:false, // One of the 2 are required
         outDated:false, 
-        _creator: user_id,                  // Required
+        _owner: user_id,                  // Required
         _date_Created: new Date().getTime(),
         _date_Modified: new Date().getTime()
     };
@@ -707,7 +707,7 @@ exports.updatePermission = function(oldPerm, action, newPerms, callback) {
         else {newPerms.granted = false; newPerms.denied = false;} // default - error
         newPerms._date_Modified = new Date().getTime();
         newPerms._date_Created = oldPerm._date_Created;
-        newPerms._creator = oldPerm._creator;
+        newPerms._owner = oldPerm._owner;
 
         // changes july 2015
         //for (var oldkey in oldPerm) {if (!newPerms[oldkey]) newPerms[oldkey]=null};
@@ -728,7 +728,7 @@ exports.deletePermission = function (record_id, callback) {
 // queries
 exports.all_userAppPermissions = function (user_id, app_name, callback) {
     var sort = {'_date_Created':-1};
-    var dbQuery = {'$and': [{'_creator':user_id}, {'$or':[{'requestor_app':app_name}, {'requestee_app':app_name}]}]};
+    var dbQuery = {'$and': [{'_owner':user_id}, {'$or':[{'requestor_app':app_name}, {'requestee_app':app_name}]}]};
     db_main.permissions.find(dbQuery)
         .sort(sort)
         .skip(0)
@@ -736,32 +736,32 @@ exports.all_userAppPermissions = function (user_id, app_name, callback) {
 }
 exports.requestee_userAppPermissions = function (user_id, app_name, callback) {
     var sort = {'_created':1};
-    var dbQuery = {'$and': [{'_creator':user_id}, {'requestee_app':app_name}]};
+    var dbQuery = {'$and': [{'_owner':user_id}, {'requestee_app':app_name}]};
     db_main.permissions.find(dbQuery)
         .sort(sort)
         .skip(0)
         .toArray(callback);
 }
-exports.permission_by_creator_and_permissionName = function (user_id, requestor_app, requestee_app, permission_name, callback) {
+exports.permission_by_owner_and_permissionName = function (user_id, requestor_app, requestee_app, permission_name, callback) {
     //onsole.log("getting perms for "+user_id+" "+requestor_app+" "+requestee_app+" "+ permission_name)
     if (!user_id) {
-        callback(helpers.missing_data("cannot get permission without user_id", "freezr_db", exports.version,"permission_by_creator_and_permissionName"));
+        callback(helpers.missing_data("cannot get permission without user_id", "freezr_db", exports.version,"permission_by_owner_and_permissionName"));
     } else if (!requestor_app) {
-        callback(helpers.missing_data("cannot get permission without requestor_app", "freezr_db", exports.version,"permission_by_creator_and_permissionName"));
+        callback(helpers.missing_data("cannot get permission without requestor_app", "freezr_db", exports.version,"permission_by_owner_and_permissionName"));
     } else if (!requestee_app) {
-        callback(helpers.missing_data("cannot get permission without requestee_app", "freezr_db", exports.version,"permission_by_creator_and_permissionName"));
+        callback(helpers.missing_data("cannot get permission without requestee_app", "freezr_db", exports.version,"permission_by_owner_and_permissionName"));
     } else if (!permission_name) {
-        callback(helpers.missing_data("cannot get permission without permission_name", "freezr_db", exports.version,"permission_by_creator_and_permissionName"));
+        callback(helpers.missing_data("cannot get permission without permission_name", "freezr_db", exports.version,"permission_by_owner_and_permissionName"));
     } else {
-        var dbQuery = {'$and': [{"_creator":user_id}, {'requestee_app':requestee_app}, {'requestor_app':requestor_app}, {'permission_name':permission_name}]};
+        var dbQuery = {'$and': [{"_owner":user_id}, {'requestee_app':requestee_app}, {'requestor_app':requestor_app}, {'permission_name':permission_name}]};
         db_main.permissions.find(dbQuery)
             .skip(0)
             .toArray(callback);
     }
 }
-exports.permission_by_creator_and_objectId = function (user_id, requestee_app, collection_name, data_object_id, callback) {
+exports.permission_by_owner_and_objectId = function (user_id, requestee_app, collection_name, data_object_id, callback) {
     //onsole.log("getting perms for "+user_id+" "+requestor_app+" "+requestee_app+" "+ permission_name)
-    var dbQuery = {'$and': [{"_creator":user_id}, {'requestee_app':requestee_app}, {'collection_name':collection_name}, {'data_object_id':data_object_id}]};
+    var dbQuery = {'$and': [{"_owner":user_id}, {'requestee_app':requestee_app}, {'collection_name':collection_name}, {'data_object_id':data_object_id}]};
     db_main.permissions.find(dbQuery)
         .skip(0)
         .toArray(callback);
@@ -868,7 +868,7 @@ exports.permissionsAreSame = function (p1,p2) {
 // APP CODE CHECK
 exports.check_app_code = function(user_id, app_name, source_app_code, callback) {
     // check app code... ie open user_installed_app_list and make sure app source code is correct
-     // see if query is _creator is user_id... or query and is user_id... if so send cb(null)
+     // see if query is _owner is user_id... or query and is user_id... if so send cb(null)
     // for each user, see if permission has been given
     //onsole.log("check_app_code");
 

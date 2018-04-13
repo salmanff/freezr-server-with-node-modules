@@ -1,10 +1,11 @@
 
 const CUST_FILE_SEL_LIST = ['local','dropbox'];
-const INPUT_TEXT_PARAM_LIST = ['user_id', 'password', 'password2', 'db_user', 'db_pword', 'db_host', 'db_port', 'db_unifiedDbName', 'fs_token','fs_auth_Server','fs_auth_AppName'];
+const INPUT_TEXT_PARAM_LIST = ['user_id', 'password', 'password2', 'db_user', 'db_pword', 'db_host', 'db_port', 'db_connectionString', 'db_unifiedDbName', 'fs_token','fs_auth_Server','fs_auth_AppName'];
 //Unused:  INPUT_CHECK_PARAM_LIST = ['db_addAuth'] ,  INPUT_SELCTOR_PARAM_LIST = ['fs_selectorName']
 
 freezr.initPageScripts = function() {
   document.addEventListener('click', function (evt) {
+    console.log(evt.target.id)
     let args = evt.target.id.split("_");
     let params = {};
     if (args && args.length>1 && args[0] == "click") {
@@ -13,7 +14,11 @@ freezr.initPageScripts = function() {
             register();
             break;
           case 'externalDb':
-            showMainSection(args[1])
+            if (args[2]) {
+              showSubSection(args[1],args[2]) 
+            } else {
+              showMainSection(args[1])
+            }
             break;
           case 'externalFs':
             showMainSection(args[1])
@@ -58,6 +63,7 @@ freezr.initPageScripts = function() {
       db_pword: '',
       db_host: freezr_environment.dbParams.host,
       db_port: freezr_environment.dbParams.port,
+      db_connectionString: freezr_environment.dbParams.connectionString,
       db_has_pw: freezr_environment.dbParams.has_password,
       db_unifiedDbName: (freezr_environment.dbParams.unifiedDbName? freezr_environment.dbParams.unifiedDbName : ""),
       fs_selectorName: (freezr_environment.userDirParams.name? freezr_environment.userDirParams.name : "local"),
@@ -79,6 +85,7 @@ freezr.initPageScripts = function() {
   }
 
   if (tempParams.db_user) showMainSection('externalDb');
+  if (tempParams.connectionString) {showMainSection('externalDb'); showSubSection('externalDb','connectionString'); };
 
   populateForm(tempParams);
 
@@ -91,6 +98,14 @@ freezr.initPageScripts = function() {
 var showMainSection = function (section) {
   hideDiv('click_'+section);
   showDiv(section);
+}
+var showSubSection = function (mainSection, subSection) {
+  console.log("as",mainSection,subSection)
+  if (mainSection == 'externalDb') {
+    console.log("adsds")
+    hideDiv("externalDb_"+(subSection == 'connectionString'? 'Details':'connectionString'));
+    showDiv("externalDb_"+subSection); 
+  }
 }
 var  populateForm = function(params) {
   //onsole.log("populateForm",params)
@@ -139,10 +154,14 @@ var get_current_vals = function() {
   
   params.db_addAuth=document.getElementById('db_addAuth')? document.getElementById('db_addAuth').checked:null;
 
-  params.wantsExternalDb = (params.db_host || params.db_pword || freezr_environment.dbParams.has_password);
+  params.wantsExternalDb = (params.connectionString || params.db_host || params.db_pword || freezr_environment.dbParams.has_password);
   
-  params.externalDb = params.wantsExternalDb? {port:params.db_port, host:params.db_host, pass:params.db_pword, user:params.db_user, addAuth:params.db_addAuth, has_password: freezr_environment.dbParams.has_password}:null;
-
+  params.externalDb = params.db_connectionString? 
+          {connectionString:params.db_connectionString, has_password: freezr_environment.dbParams.has_password}
+          :
+            (params.wantsExternalDb?
+              {port:params.db_port, host:params.db_host, pass:params.db_pword, user:params.db_user, addAuth:params.db_addAuth, has_password: freezr_environment.dbParams.has_password}
+              : null);
   params.infoMissing = false;
   params.externalFs = {};
   params.fileSysSelected = CUST_FILE_SEL_LIST[document.getElementById('customFileSysSelect').selectedIndex];
@@ -282,10 +301,12 @@ var showClass = function (theClass){
 }
 var showDiv = function (divId){
   let theEl = document.getElementById(divId);
+  console.log("shwoing "+divId+(theEl? "exists":"ex NOT"))
   if (theEl) theEl.style.display="block";
 }
 var hideDiv = function (divId){
   let theEl = document.getElementById(divId);
+  console.log("hiding "+divId+(theEl? "exists":"ex NOT"))
   if (theEl) theEl.style.display="none";
 }
 var hideDivs = function(theDivs) {

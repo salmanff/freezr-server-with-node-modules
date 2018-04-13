@@ -103,8 +103,8 @@ exports.generatePublicPage = function (req, res) {
                             options.initial_query.search = req.query[param]; 
                         } else if (['app','app_name'].indexOf(param)>-1) {
                             options.initial_query.app_name = req.query[param]; 
-                        } else if (['user','_creator','user_id'].indexOf(param)>-1) {
-                            options.initial_query._creator = req.query[param]; 
+                        } else if (['user','_owner','user_id'].indexOf(param)>-1) {
+                            options.initial_query._owner = req.query[param]; 
                         } 
                         // todo - expand search query paramaters to the data_object
                     }}
@@ -237,7 +237,7 @@ gotoShowInitialData = function(res, freezr_environment, options) {
     if (!options.initial_query) options.initial_query = {};
     var display_more=true;
     req.body = {app_name:options.initial_query.app_name, 
-                user_id:options.initial_query._creator,
+                user_id:options.initial_query._owner,
                 count: options.initial_query.count || 20,
                 skip: options.initial_query.skip || 0,
                 query_params:options.initial_query.query_params || {},
@@ -262,7 +262,7 @@ gotoShowInitialData = function(res, freezr_environment, options) {
                     var unique_object_permission_attributes =
                         {   'requestor_app':req.params.requestor_app,
                             'requestee_app':requestee_app,
-                            '_creator':req.session.logged_in_user_id,
+                            '_owner':req.session.logged_in_user_id,
                             'permission_name':req.params.permission_name,
                             'collection_name': collection_name,
                             'data_object_id': data_object_id,
@@ -468,8 +468,8 @@ exports.dbp_query = function (req, res){
 
             if (req.body && req.body.app_name) permission_attributes.requestee_app = req.body.app_name.toLowerCase();
             if (req.params && req.params.app_name) permission_attributes.requestee_app = req.params.app_name.toLowerCase();
-            if (req.body && req.body.user_id ) permission_attributes._creator = req.body.user_id.toLowerCase();
-            if (req.query && req.query.user_id ) permission_attributes._creator = req.query.user_id.toLowerCase();
+            if (req.body && req.body.user_id ) permission_attributes._owner = req.body.user_id.toLowerCase();
+            if (req.query && req.query.user_id ) permission_attributes._owner = req.query.user_id.toLowerCase();
 
             if (req.body.search) {
                 req.body.search = decodeURIComponent(req.body.search).toLowerCase();
@@ -570,14 +570,14 @@ var recheckPermissionExists = function(permission_record, freezr_environment, ca
         } else if (!permission_model){
             cb(helpers.app_data_error(exports.version, "recheckPermissionExists", permission_record.requestee_app, "missing or removed app_config"));
         } else {
-            freezr_db.permission_by_creator_and_permissionName (permission_record._creator, permission_record.requestor_app, permission_record.requestee_app, permission_record.permission_name, cb)
+            freezr_db.permission_by_owner_and_permissionName (permission_record._owner, permission_record.requestor_app, permission_record.requestee_app, permission_record.permission_name, cb)
         }
     },
         /* from setObjectAccess for permission_record
         var unique_object_permission_attributes =
             {   'requestor_app':req.params.requestor_app,
                 'requestee_app':requestee_app,
-                '_creator':req.session.logged_in_user_id,
+                '_owner':req.session.logged_in_user_id,
                 'permission_name':req.params.permission_name,
                 'collection_name': collection_name,
                 'data_object_id': data_object_id,

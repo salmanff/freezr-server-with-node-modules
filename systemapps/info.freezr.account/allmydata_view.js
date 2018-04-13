@@ -138,7 +138,7 @@ var insertnextElements = function() {
 		var dataRow = dl.collections[dl.current_collection.num].data[dl.current_collection.rowsShown];
 		for (var key in dl.current_collection.fields ) {
 			if (dl.current_collection.fields.hasOwnProperty(key)) {
-				var cellContent = dataRow[key]?  (dl.current_collection.fields[key].type=="date"?freezr.utils.longDateFormat(  dataRow[key]) : dataRow[key]) : " - ";
+				var cellContent = dataRow[key]?  (dl.current_collection.fields[key].type=="date"?freezr.utils.longDateFormat(  dataRow[key]) : JSON.stringify(dataRow[key])) : " - ";
 				 
 				tempText+= "<div class='div-table-col' style='width:"+ dl.current_collection.fields[key].cellLen+"px' >"+(cellContent)+"</div>"
 			}

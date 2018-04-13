@@ -138,7 +138,7 @@ freezr.perms.setFieldAccess = function(options, callback) {
 
   freezer_restricted.connect.write(url, options, callback);
 }
-freezr.perms.setObjectAccess = function(permission_name, data_object_id, options, callback) {
+freezr.perms.setObjectAccess = function(permission_name, idOrQuery, options, callback) {
   // gives specific people access to a specific object
   // permission_name is the permission_name under which the field is being  
 
@@ -148,13 +148,18 @@ freezr.perms.setObjectAccess = function(permission_name, data_object_id, options
         // can have one of:  'shared_with_group':'logged_in' or 'public' or 'shared_with_user':a user id  
         // 'requestee_app': app_name (defaults to self)
         // collection: defaults to first in list
-        // make_accessible (four public items, this is always true) - for others, this makes it accessible in a separate searchable collection (accessibles) so it can be more easily combined with otehr data sets searched
+        // make_accessible (four public individual items, this is always true) - for others, this makes it accessible in a separate searchable collection (accessibles) so it can be more easily combined with otehr data sets searched
+          // if use query_criteria, make_accessible is false even for public items. 
        }
       }
   if (!options.action) {options.action = "grant";}
-  options.data_object_id = data_object_id;
-
-  freezer_restricted.connect.write(url, options, callback);
+  if (!idOrQuery) {
+    callback({'error':'must incude object id or a seearch query'})
+  } else {
+    if (typeof idOrQuery == "string") options.data_object_id = idOrQuery;
+    if (typeof idOrQuery == "object") options.query_criteria = idOrQuery;
+    freezer_restricted.connect.write(url, options, callback);
+  }
 }
 freezr.perms.listOfFieldsIvegrantedAccessTo = function(options, callback) {
   // todo - Currently not functional
@@ -166,7 +171,7 @@ freezr.perms.listOfFieldsIvegrantedAccessTo = function(options, callback) {
 freezr.perms.allFieldsIHaveAccessTo = function(options , callback) {
   // todo - Currently not functional
   // returns list of folders (or field names) user has been given access to (excluding subfolders) by other users
-  // options: permission_name, collection, requestee_app, action,  _creator, 
+  // options: permission_name, collection, requestee_app, action,  _owner, 
   // target_app???
   var url = '/v1/permissions/getfieldperms/ihaveccessto/'+freezr_app_name+'/'+freezr_app_code+'/';
   freezer_restricted.connect.read(url, options, callback);
@@ -382,7 +387,7 @@ freezer_restricted.permissions= {};
 // PERMISSIONS - BASE FUNCTIONS GRANTING PERMISSIONS
   freezer_restricted.permissions.change = function(buttonId, permission_name, permission_object) {
     //onsole.log("CHANGE id"+buttonId+" permission_name"+permission_name+" "+ JSON.stringify(permission_object));
-    //  {"description":"Player Recent Scores","app_name":null,"collection":"scores","search_fields":null,"sort_fields":{"_date_created":1},"count":1,"return_fields":["score","_creator","_date_created"],"sharable_groups":"logged_in"}
+    //  {"description":"Player Recent Scores","app_name":null,"collection":"scores","search_fields":null,"sort_fields":{"_date_created":1},"count":1,"return_fields":["score","_owner","_date_created"],"sharable_groups":"logged_in"}
     var theButt = document.getElementById(buttonId);
     if (theButt.className == "freezer_butt") {
       theButt.className = "freezer_butt_pressed";
@@ -542,7 +547,6 @@ freezer_restricted.permissions= {};
     cont+= '</div>'
     divToInsertIn.innerHTML = cont;
     document.getElementById('freezr_server_login_butt').onclick = function(){
-      var existing_id = (freezr_user_id? true:false )
       freezr_user_id = document.getElementById('freezr_login_username').innerText;
       var password = document.getElementById('freezr_login_pw').value;
         //onsole.log("logging in "+freezr_user_id+"-"+password+". server "+freezr_server_address)
@@ -551,21 +555,6 @@ freezer_restricted.permissions= {};
         var theInfo = { "user_id": freezr_user_id, "password": password, 'login_for_app_name':freezr_app_name};
         if (!freezr_app_name) {
             alert("developer error: variable freezr_app_name needs to be defined");
-        } else if (existing_id) {
-            freezr.utils.ping(theInfo, function(resp) {
-              resp = freezr.utils.parse(resp);
-              if (resp.error) {
-                document.getElementById('freezer_dialogueInnerText').innerHTML= "Error validating your login credentials. "+(resp.message? resp.message: resp.error);
-              } else if (resp.login_for_app_name == freezr_app_name) {
-                freezer_restricted.menu.close()
-                freezr_app_code = resp.source_app_code;
-                freezr_server_version = resp.freezr_server_version;
-                freezr.app.offlineCredentialsExpired = false;
-                freezr.app.loginCallback? freezr.app.loginCallback(resp): console.log("Warning: Set freezr.app.loginCallback to handle log in response: " + JSON.stringify(resp));
-              } else {
-                  document.getElementById('freezer_dialogueInnerText').innerHTML= 'developper error - loggedin_app_name '+resp.login_for_app_name+' is not correct.';
-              }
-           }) 
         } else {
           freezer_restricted.menu.resetDialogueBox();
           freezer_restricted.connect.ask("/v1/account/applogin", theInfo, function(resp) {
@@ -584,7 +573,7 @@ freezer_restricted.permissions= {};
               freezr.app.offlineCredentialsExpired = false;
               freezr.app.loginCallback? freezr.app.loginCallback(resp): console.log("Warning: Set freezr.app.loginCallback to handle log in response: " + JSON.stringify(resp));
             } else {
-                document.getElementById('freezer_dialogueInnerText').innerHTML= 'developper error - loggedin_app_name '+resp.login_for_app_name+' is not correct.';
+                document.getElementById('freezer_dialogueInnerText').innerHTML= 'developper error  2- loggedin_app_name '+resp.login_for_app_name+' is not correct.';
             }
           });
         }

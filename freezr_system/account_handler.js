@@ -181,15 +181,16 @@ exports.login = function (req, res) {
 };
 exports.ping = function (req, res) {
     // /v1/account/ping 
-    if (!req.session.logged_in_user_id) {
+    //onsole.log("ping.."+JSON.stringify(req.query))
+    if (!req.session.logged_in_user_id && !req.query.user_id) {
         helpers.send_success(res, { logged_in: false});
-    } else if (req.query.login_for_app_name) {
+    } else if (req.query.user_id) {
         // also needs req.query.password, which has to be checked
         // check 
         async.waterfall([
             // 1. get user
             function (cb) {
-                freezr_db.user_by_user_id(req.session.logged_in_user_id, cb);
+                freezr_db.user_by_user_id(req.query.user_id, cb);
             },
 
             // 2. check the password
@@ -208,15 +209,17 @@ exports.ping = function (req, res) {
             }        
         ],
         function (err, results) {
-            //onsole.log("got source_app_code? "+results.source_app_code)
-            if (err || !results || !results.app_code) {
-                helpers.send_success(res, { logged_in: true, 'login_for_app_name':req.query.login_for_app_name,  'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version, 'error':"error_getting_app_code"});        
+            if (err) {
+                helpers.send_success(res, { logged_in: false, 'freezr_server_version':req.freezr_server_version});        
+            } else if (!results || !results.app_code) {
+                helpers.send_success(res, { logged_in: true, 'login_for_app_name':req.query.login_for_app_name,  'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version, 'error':"error_getting_app_code"});               
             } else {
                  helpers.send_success(res, { logged_in: true, 'login_for_app_name':req.query.login_for_app_name,  'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version, 'source_app_code':results.app_code});       
             }
         });
     } else {
-        helpers.send_success(res, { logged_in: true, 'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version});
+        var logged_in = (req.session.logged_in_user_id? true:false);
+        helpers.send_success(res, { logged_in:  logged_in, 'logged_in_as_admin':req.session.logged_in_as_admin, 'user_id':req.session.logged_in_user_id, 'freezr_server_version':req.freezr_server_version, 'login_for_app_name':req.query.login_for_app_name});
     } 
 };
 exports.logout = function (req, res) {
@@ -696,7 +699,7 @@ exports.changeNamedPermissions = function(req, res) {
 
             // 3. get current permission record
             function (cb) {
-                freezr_db.permission_by_creator_and_permissionName(req.session.logged_in_user_id, requestor_app, requestee_app, permission_name, cb);
+                freezr_db.permission_by_owner_and_permissionName(req.session.logged_in_user_id, requestor_app, requestee_app, permission_name, cb);
                     //onsole.log("getting existing perm: req.session.logged_in_user_id:"+req.session.logged_in_user_id+", requestor_app:"+requestor_app+", requestee_app:"+requestee_app+", permission_name:"+permission_name)
             },
 
@@ -762,7 +765,7 @@ removeAllAccessibleObjects = function(user_id, requestor_app, requestee_app, per
     function (theCollection, cb) {
         if (!theCollection) cb(helpers.error("db access error","could not access info_freezr_permissions from removeAllAccessibleObjects"))
         accessibles_collection = theCollection;
-        accessibles_collection.find({_creator:user_id, permission_name: permission_name, requestor_app: requestor_app, granted:true}).toArray(cb)
+        accessibles_collection.find({_owner:user_id, permission_name: permission_name, requestor_app: requestor_app, granted:true}).toArray(cb)
     },
     // 3. Set granted=false to all accessibles and create nice lists for future actions
     function (results, cb) {

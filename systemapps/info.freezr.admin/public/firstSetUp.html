@@ -50,45 +50,61 @@
       <div id="externalDb" style="display:none">
         <div class="freezer_app_page_title freezer_spacer"></div>
         <hr/>
-        <div class="freezer_app_page_title freezer_spacer">
-            <center class="green bold">External Database</center>
-             
-            Please enter credentials if you want to use an external database
-        </div>     
+        <div id="externalDb_Details">
+          <div class="freezer_app_page_title freezer_spacer">
+              <center> <span class="green bold">External Database Details </span> (or <span id="click_externalDb_connectionString" style="cursor:pointer; color:green">click here</span> to enter the full connections string.)</center>
+              Please enter credentials if you want to use an external database
+          </div>     
+          <table>
+            <tr>
+              <td width="150px" align="right">Database User:</td>
+              <td width="220px"><input type="text" size="40" id="db_user" name="db_user"/></td> 
+            </tr>
+            <tr>
+              <td width="150px" align="right">Database Password:</td>
+              <td width="220px"><input type="password" size="40" id="db_pword" name="db_pword"/></td> 
+            </tr>
+            <tr>
+              <td width="150px"  align="right">Database host:</td>
+              <td width="220px"><input type="text" size="40" id="db_host" name="db_host"/></td> 
+            </tr>
+            <tr>
+              <td width="150px"  align="right">Database port:</td>
+              <td width="220px"><input type="text" size="40" id="db_port" name="db_port"/></td> 
+            </tr>  
+            <tr>
+              <td width="150px"  align="right">Admin:</td>
+              <td width="220px"><input type="checkbox" name="db_addAuth" id="db_addAuth">Use adminisrative authority?<br></td> 
+            </tr>
+            <tr>
+              <td width="150px"  align="right">Unified db name:</td>
+              <td width="220px">Enter name to use 1 db for all apps
+                <br>
+                <input type="text" size="40" id="db_unifiedDbName" name="db_unifiedDbName" />
+                <br/>
+              </td> 
+            </tr>          
+          </table>
+          <hr/>
+          <div class="freezer_app_page_title spacer"></div>
+          <div class="freezer_app_page_title spacer"></div>
+        </div> 
 
-        <table>
-          <tr>
-            <td width="150px" align="right">Database User:</td>
-            <td width="220px"><input type="text" size="40" id="db_user" name="db_user"/></td> 
-          </tr>
-          <tr>
-            <td width="150px" align="right">Database Password:</td>
-            <td width="220px"><input type="password" size="40" id="db_pword" name="db_pword"/></td> 
-          </tr>
-          <tr>
-            <td width="150px"  align="right">Database host:</td>
-            <td width="220px"><input type="text" size="40" id="db_host" name="db_host"/></td> 
-          </tr>
-          <tr>
-            <td width="150px"  align="right">Database port:</td>
-            <td width="220px"><input type="text" size="40" id="db_port" name="db_port"/></td> 
-          </tr>  
-          <tr>
-            <td width="150px"  align="right">Admin:</td>
-            <td width="220px"><input type="checkbox" name="db_addAuth" id="db_addAuth">Use adminisrative authority?<br></td> 
-          </tr>
-          <tr>
-            <td width="150px"  align="right">Unified db name:</td>
-            <td width="220px">Enter name to use 1 db for all apps
-              <br>
-              <input type="text" size="40" id="db_unifiedDbName" name="db_unifiedDbName" />
-              <br/>
-            </td> 
-          </tr>          
-        </table>
-        <hr/>
-        <div class="freezer_app_page_title spacer"></div>
-        <div class="freezer_app_page_title spacer"></div>
+
+
+        <div id="externalDb_connectionString" style="display:none">
+          <div class="freezer_app_page_title freezer_spacer">
+              <center > <span class="green bold">External Database Connection String </span> (or <span id="click_externalDb_Details" style="cursor:pointer; color:green">click here</span> to show Detailed parameters.)</center>
+              Please enter the full connection string.
+          </div>     
+          <input type="text" size="80" id="db_connectionString" name="db_connectionString"/>
+          <hr/>
+          <div class="freezer_app_page_title spacer"></div>
+          <div class="freezer_app_page_title spacer"></div>
+        </div> 
+
+
+
       </div> 
 
       <center> <span id="click_externalDb" class="small_butt butt_weak">Use External Database</span> <span id="click_externalFs"class="small_butt butt_weak">Use External File System</span></center>
