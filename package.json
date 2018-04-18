@@ -16,7 +16,7 @@
     "mongodb": "3.0.x",
     "morgan": "1.x",
     "multer": "1.x",
-    "mustache": "^2.3.0"
+    "mustache": "^2.3.0",
     "comment-json":"1.x"
   }
 }
