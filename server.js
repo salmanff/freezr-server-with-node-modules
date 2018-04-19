@@ -3,7 +3,7 @@ const VERSION = "0.0.121";
 
 
 // INITALISATION / APP / EXPRESS
-console.log("=========================  VERSION October 2017  =======================")
+console.log("=========================  VERSION April 2018  =======================")
 const LISTEN_TO_LOCALHOST_ON_LOCAL = true; // for local development - set to true to access local site at http://localhost:3000, and false to access it at your local ip address - eg http://192.168.192.1:3000 (currently not working)
 
 

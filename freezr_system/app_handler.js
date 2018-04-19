@@ -3,6 +3,7 @@ exports.version = "0.0.1";
  
 var helpers = require('./helpers.js'),
     freezr_db = require("./freezr_db.js"),
+    user_obj = require("./user_obj.js"),
     async = require('async'),
     file_handler = require('./file_handler.js');
 
@@ -229,7 +230,8 @@ var generatePageWithAppConfig = function (req, res, app_config) {
 // database operations
 exports.putData = function (req, res){
     // /v1/app_data/:app_name/:source_app_code/:collection
-    helpers.log (req,"putData at "+req.url); //+"body:"+JSON.stringify((req.body && req.body.data)? req.body.data:" none"));
+    //helpers.log (req,"putData at "+req.url); //+"body:"+JSON.stringify((req.body && req.body.options)? req.body.options:" none"));
+    helpers.log (req,"putData at "+req.url+"body:"+JSON.stringify((req.body && req.body.options)? req.body.options:" none"));
 
     // Initialize variables
         if (req.body.options && (typeof req.body.options == "string")) req.body.options = JSON.parse(req.body.options); // needed when upload file
@@ -251,6 +253,12 @@ exports.putData = function (req, res){
             if (write._date_Modified) delete write._date_Modified;
             if (write._date_Created ) delete write._date_Created;
         }
+        if (req.body.options && req.body.options.updateRecord && !req.body.options.restoreRecord) {
+            reserved_field_name_list.forEach(function (aReservedField) {
+                if (write[aReservedField] ) delete write[aReservedField];
+            } )
+        }
+
 
         //onsole.log("-- write ",write)
         function app_auth(message) {return helpers.auth_failure("app_handler", exports.version, "putData", message);}
@@ -283,8 +291,6 @@ exports.putData = function (req, res){
                 cb(helpers.auth_failure("app_handler", exports.version, "putData", req.params.app_name, "Need to be logged in to access app"));
             } else if (!collection_name) { 
                 cb(app_err("Missing collection name"));
-            } else if (!collectionIsValid(collection_name,app_config,fileParams.is_attached)) {
-                cb(app_err("Collection name is invalid."));
             } else if (!newObjectFieldNamesAreValid(req,data_model)) {
                 cb(app_err("invalid field names"));
             } else if (fileParams.is_attached && data_model && data_model.do_not_allow) {
@@ -293,8 +299,28 @@ exports.putData = function (req, res){
                 cb(app_err("Missing data parameters."));
             } else if (!fileParams.is_attached && Object.keys(req.body.data).length<=0 ) {
                 cb(app_err("Missing data parameters."));               
-            } else if (helpers.system_apps.indexOf(req.params.app_name)>-1){
-                cb(helpers.invalid_data("app name not allowed: "+app_name, "account_handler", exports.version, "add_uploaded_app_zip_file"));
+            } else if (helpers.system_apps.indexOf(req.params.app_name)>-1 || 
+                !collectionIsValid(collection_name,app_config,fileParams.is_attached)){
+                // check for exception of 
+                //onsole.log(collection_name,req.params.app_name,req.body.options.restoreRecord)
+                if (collection_name=="accessible_objects" && req.params.app_name=="info.freezr.permissions" && req.body.options.restoreRecord && req.body.options.password) {
+                    freezr_db.user_by_user_id(req.session.logged_in_user_id, function (err, user_json) {
+                        if (err) {
+                            cb(err)
+                        } else {
+                            var u = new User(user_json);
+                            if (u.check_passwordSync(req.body.options.password)) {
+                                cb(null)
+                            } else {
+                                cb(helpers.auth_failure("app_handler", exports.version, "putData", req.params.app_name, "Cannot upload to accessible_objects without a password"));
+                            }
+                        }
+                    })
+                } else if (helpers.system_apps.indexOf(req.params.app_name)>-1 ){
+                    cb(helpers.invalid_data("app name not allowed: "+req.params.app_name, "account_handler", exports.version, "add_uploaded_app_zip_file"));
+                } else {
+                    cb(app_err("Collection name "+collection_name+"is invalid."));
+                }
             } else {
                 cb(null);
             }
@@ -327,11 +353,17 @@ exports.putData = function (req, res){
                     data_object_id = data_object_id+"/"+fileParams.name;
                     file_handler.writeUserFile(fileParams.dir, fileParams.name, req.body.options, data_model, req, cb);       
                 }
-            } else if (!data_model || req.body.options.updateRecord || !data_model.make_data_id || (!data_model.make_data_id.from_field_names && !data_model.make_data_id.manual)) {
-                //onsole.log("deleting id - snbh???")
+            } else if (!req.body.options.updateRecord && (!data_model || !data_model.make_data_id || (!data_model.make_data_id.from_field_names && !data_model.make_data_id.manual))) {
                 delete write._id;
                 cb(null, null);
-            } else if (data_model.make_data_id.manual) {
+            } else if (req.body.options.updateRecord) { 
+                if (req.body.options.KeepUpdateIds){
+                    cb(null, null);
+                } else {
+                    delete write._id;
+                    cb(null, null);
+                }
+            } else if (data_model && data_model.make_data_id && data_model.make_data_id.manual) {
                 if (write._id) {
                     cb(null, null);
                 } else {
@@ -340,7 +372,7 @@ exports.putData = function (req, res){
                     cb(app_err("object id is set to manual but is missing"));
                 }
             // then is must be make_data_id.from_field_names...
-            } else if (!data_model.make_data_id.reference_field_names || !(data_model.make_data_id.reference_field_names instanceof Array) || data_model.make_data_id.reference_field_names.length==0){
+            } else if  (data_model && data_model.make_data_id && (!data_model.make_data_id.reference_field_names || !(data_model.make_data_id.reference_field_names instanceof Array) || data_model.make_data_id.reference_field_names.length==0) ){
                 cb(app_err("object id reference field_names but none are included"));
             } else { 
                 var err = null;
@@ -407,7 +439,8 @@ exports.putData = function (req, res){
             } else if (results.length == 1 && fileParams.is_attached && (req.body.options && req.body.options.fileOverWrite) && results[0]._owner == req.session.logged_in_user_id) { // file data being updated
                 dbCollection.update({_id: real_object_id },
                     {$set: write}, {safe: true }, cb);
-            } else if (results.length == 1 && req.body.options && (req.body.options.updateRecord || data_model.make_data_id.manual) && results[0]._owner == req.session.logged_in_user_id) { // document update
+            } else if (results.length == 1 
+                        && req.body.options && (req.body.options.KeepUpdateIds || req.body.options.updateRecord || (data_model && data_model.make_data_id && data_model.make_data_id.manual)) && results[0]._owner == req.session.logged_in_user_id) { // document update
                 //todo: have option of overwriting all? dbCollection.update({ _id: real_object_id }, ie write, {safe: true }, cb);
                 final_object = results[0];
                 isAccessibleObject = (final_object._accessible_By && final_object._accessible_By.groups && final_object._accessible_By.groups.length>0);
@@ -759,7 +792,7 @@ exports.db_query = function (req, res){
     // req.body.onlyOthers excludes own records
     // todo - Simplify so that if ownrecord, just looks up the db and if not, then returns the data_record in the accessibles_db. (Figure out what to do in case of field and folder permissions - potentially separate into separate functions)
 
-    console.log("db_query from: "+req.params.requestor_app+" - "+JSON.stringify(req.body));
+    console.log("db_query from: "+req.params.requestor_app+" - "); // +JSON.stringify(req.body)
 
     var appDb = {}, dbCollection, accessibles_collection, objectsPermittedList=[];
     var usersWhoGrantedFieldPermission = (req.params.requestee_app == req.params.requestor_app)? [{'_owner':req.session.logged_in_user_id}]: []; // if requestor is same as requestee then user is automatically included
@@ -996,9 +1029,9 @@ exports.db_query = function (req, res){
                     if (app_config_permission_schema.sharable_groups.indexOf('public')>-1) theOrs.push({'_accessible_By.group_perms.public':perm_string})
                     if (app_config_permission_schema.sharable_groups.indexOf('logged_in')>-1 && req.session.logged_in_user_id) theOrs.push({'_accessible_By.group_perms.logged_in':perm_string})
                     if (app_config_permission_schema.sharable_groups.indexOf('user')>-1 && req.session.logged_in_user_id) {
-                        var user_obj={}
-                        user_obj['_accessible_By.user_perms.'+req.session.logged_in_user_id]=perm_string;
-                        theOrs.push(user_obj);
+                        var a_user_obj={}
+                        a_user_obj['_accessible_By.user_perms.'+req.session.logged_in_user_id]=perm_string;
+                        theOrs.push(a_user_obj);
                     }
                     if (!req.body.onlyOthers && req.params.requestee_app == req.params.requestor_app) theOrs.push({'_owner':req.session.logged_in_user_id})
                     
@@ -1094,9 +1127,8 @@ exports.setObjectAccess = function (req, res) {
         dbCollection, 
         permission_collection,
         accessibles_object_id, 
-        data_object = {},
         search_words = [],
-        data_object = {},
+        the_one_public_data_object = {},
         records_changed=0;
         real_object_id=null;
 
@@ -1108,8 +1140,8 @@ exports.setObjectAccess = function (req, res) {
     var issues = [];
     var doGrant = (!req.body.action || req.body.action == "grant")? true:false;
 
-    var addToAccessibles = query_criteria && ((new_shared_with_group == "public" ) || req.body.make_accessible);
-    // currently added query_criteria to deal with multuple items, but "make_accessible" section onl works with one object at a time - to be updated later (Todo later)
+    var addToAccessibles =  new_shared_with_group == "public"  || (query_criteria && req.body.make_accessible);
+    // currently added query_criteria to deal with multuple items, but "make_accessible" section only works with one object at a time - to be fixed / updated later (Todo later)
 
     console.log("setObjectAccess by "+req.session.logged_in_user_id+" for "+data_object_id+" query:"+ JSON.stringify(query_criteria)+" action"+JSON.stringify(req.body.action)+" perm: " +req.params.permission_name, " accessibles_object_id:",accessibles_object_id,"collection name: ",req.body.collection);
     
@@ -1211,8 +1243,12 @@ exports.setObjectAccess = function (req, res) {
                     if (addToAccessibles && permission_model.search_fields) {
                         search_words = helpers.getUniqueWords(data_object,permission_model.search_fields)
                     }
+                    
+                    // nb this part only works ith one - to fix
 
                     if (data_object._owner != req.session.logged_in_user_id) {cb2(helpers.auth_failure("app_handler", exports.version, "setObjectAccess", req.params.app_name +  "Attempt to try and set access permissions for others"));} 
+
+                    if (new_shared_with_group == "public") the_one_public_data_object = data_object;
 
                     // set _accessible_By field 
                     var accessibles = data_object._accessible_By? data_object._accessible_By:{groups:[],users:[], group_perms:{}, user_perms:{}};
@@ -1299,7 +1335,7 @@ exports.setObjectAccess = function (req, res) {
                         'shared_with_user':[new_shared_with_user],
                         '_date_Modified' : new Date().getTime(),
                         '_date_Created' : new Date().getTime(),
-                        'data_object' : data_object,
+                        'data_object' : the_one_public_data_object,
                         'search_words' : search_words,
                         'granted':doGrant,
 
@@ -1309,6 +1345,7 @@ exports.setObjectAccess = function (req, res) {
                         app_err("cannot remove a permission that doesnt exist");
                         cb(null); // Internal error which can be ignored as non-existant permission was being removed
                     } else { // write new permission
+                        //onsole.log("writing new ",accessibles_object)
                         accessibles_collection.insert(accessibles_object, { w: 1, safe: true }, cb);
                     }
                 } else if (results.length == 1) { // update existing perm
@@ -1327,7 +1364,7 @@ exports.setObjectAccess = function (req, res) {
                         write.granted = ( (write.shared_with_group && write.shared_with_group.length>0) ) ;
                     } 
                     write._date_Modified = new Date().getTime();
-                    write.data_object = data_object;
+                    write.data_object = the_one_public_data_object;
                     write.search_words = search_words;
                     accessibles_collection.update({ _id: accessibles_object_id }, {$set : write}, {safe: true }, cb);
                 } else {

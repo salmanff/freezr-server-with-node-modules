@@ -590,6 +590,7 @@ var recheckPermissionExists = function(permission_record, freezr_environment, ca
 
     // 2.  if granted, success
     function (results, cb) {
+        function app_auth(message) {return helpers.auth_failure("public_handler", exports.version, "dbp_query", message);}
         if (!results || results.length==0) {
             cb(app_auth("permission does not exist"));
         }  else if (!results.length>1) {

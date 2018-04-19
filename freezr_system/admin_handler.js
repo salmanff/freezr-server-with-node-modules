@@ -670,7 +670,7 @@ var get_auth_permission = function (params, callback) {
 }
 
 var clean_unused_states = function () {
-    helpers.log (req,"Clean out old states - todo")
+    helpers.log (null,"Clean out old states - todo")
 }
 var checkIsCorrectFirstUser = function(user_id,to_check_password,req, callback) {
     if (req.session.logged_in_user_id != user_id) {

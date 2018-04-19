@@ -1,10 +1,12 @@
 /* 
 freezr accounts allmydata_backup.js
 
-This functionality page is somewhat incomplete. 
+
+This functionality page is incomplete.... Major clean up needed...
+
 To add upload options:
 	- backup all collections seuentially
-	- set useNewIds to false : this is probably okay if redoing all data in a d-base but if records already exist, then it could run into problems as the record id may already be in use, by another user for example.
+	- set KeepUpdateIds to true : this is probably okay if redoing all data in a d-base but if records already exist, then it could run into problems as the record id may already be in use.
 	- only add new: remove restoreRecord as asn option
 	- add a rules for ignoring uploads: eg fj:deleted,true
 	- only add new records
@@ -40,7 +42,8 @@ var dl = {  // download file structure
 			  		'last_retrieved_date':null,
 			  		'data':[]
 				}
-			]
+			],
+			password:null
 		}
 
 freezr.initPageScripts = function() {
@@ -163,7 +166,7 @@ var uploader = {
 		user_name:false
 	},
 	options: {
-		useNewIds:true
+		KeepUpdateIds:true
 	}
 };
 		
@@ -173,6 +176,10 @@ var uploadAndRestoreData = function() {
 	if (!files || files.length == 0) {
 		showWarning("Please choose a file to import");
 	} else {
+		if (freezr_app_name=="info.freezr.permissions") {
+			dl.password = prompt("Please enter your password")
+		}
+
 		hideElments();
 		uploader.current_file_num = -1;
 		processNextFile();
@@ -226,14 +233,19 @@ var processNextFile = function() {
 		showWarning("No files to upload");
 	}
 }
-var transformRecord = null; 
+//var transformRecord = null; 
 var existingPurls = [];
-/* Used for vulog
-transformRecord =  function(aRecord) {
+
+var transformRecord =  function(aRecord) {
 	if (!aRecord) return null;
+	// todo - all need to be made programmatically...
+	//if (aRecord.fj_deleted) return null;
+	// for filtering lists imported. Need to do programmatically
+	//idlist = []
+	//if (idlist.indexOf(aRecord.listoryId)<0 &&  idlist.indexOf(aRecord._id)<0) return null
+	/* Used for vulog
 	if (!aRecord.url) return null
-	if (aRecord.fj_deleted) return null
-	var corePath = function(aUrl) {
+		var corePath = function(aUrl) {
 	  if (aUrl.indexOf('?')>0) aUrl = aUrl.slice(0,aUrl.indexOf('?'));
 	  if (aUrl.indexOf('#')>0) aUrl = aUrl.slice(0,aUrl.indexOf('#'));
 	  //if (aUrl.indexOf('http://')== 0){ aUrl=aUrl.slice(7)} else if (aUrl.indexOf('https://')== 0) {aUrl=aUrl.slice(8)}
@@ -256,10 +268,16 @@ transformRecord =  function(aRecord) {
 		dl.meta.app_config.collections[uploader.file_content.collections[uploader.current_collection_num].name].make_data_id ) {
 	} else {
 		delete aRecord._id;
+	}*/
+	/* 
+	if (aRecord._creator){ 
+		delete aRecord._creator
+		aRecord._owner = freezr_user_id;
 	}
+	*/
 	return aRecord;	
 };
-*/
+
 var askToProcessNextRecord = function() {
 	//onsole.log("dealing with rec"+uploader.current_record)
 	var noMoreCollections = false
@@ -271,19 +289,15 @@ var askToProcessNextRecord = function() {
 	if (noMoreCollections){
 		processNextFile();
 	} else {
-
+		
 		var thisRecord = uploader.file_content.collections[uploader.current_collection_num].data[uploader.current_record];
 		
-		if (thisRecord && transformRecord) {
-			uploader.file_content.collections[uploader.current_collection_num].data[uploader.current_record] = transformRecord(thisRecord);
-			thisRecord = uploader.file_content.collections[uploader.current_collection_num].data[uploader.current_record];
-		}
 		if (uploader.ok_to_process_all_records) {
 			processNextRecord();
 		} else if (!thisRecord) {
 			document.getElementById("err_nums").innerHTML= "Errors uploading in total of "+(++uploader.records_erred)+" records."
 			addStatus("Error geting record - Missign data in record.<br/>")
-					console.log("err - missing data rec ", thisRecord, "curr rec:", uploader.current_record, "coll num:",uploader.current_collection_num, " len ",uploader.file_content.collections[uploader.current_collection_num].data.length )
+			console.log("err - missing data rec ", thisRecord, "curr rec:", uploader.current_record, "coll num:",uploader.current_collection_num, " len ",uploader.file_content.collections[uploader.current_collection_num].data.length )
 			askToProcessNextRecord();
 		} else {
 			document.getElementById("check_record").style.display="block";
@@ -310,21 +324,29 @@ var processNextRecord = function() {
 	// process all records in file... then
 	document.getElementById("check_record").style.display="none";
 	document.getElementById("current_record").innerHTML="";
-		var thisRecord = uploader.file_content.collections[uploader.current_collection_num].data[uploader.current_record];
+	    var thisRecord = uploader.file_content.collections[uploader.current_collection_num].data[uploader.current_record];
+		if (thisRecord && transformRecord) {
+			thisRecord = transformRecord(thisRecord);
+		}
 		if (thisRecord) {
 			var uploadOptions = {
-				updateRecord: (uploader.options.useNewIds? false: true), 
-				data_object_id: (uploader.options.useNewIds? null:thisRecord._id+""),
+				password: dl.password,
+				KeepUpdateIds : uploader.options.KeepUpdateIds, // todo - to change
+				updateRecord: (uploader.options.KeepUpdateIds), 
+				data_object_id: (uploader.options.KeepUpdateIds? (thisRecord._id+""):null),
 				restoreRecord:true,
 				collection : uploader.file_content.collections[uploader.current_collection_num].name
 			}
-			if (dl.meta.app_config.collections && dl.meta.app_config.collections[uploader.file_content.collections[uploader.current_collection_num].name] && dl.meta.app_config.collections[uploader.file_content.collections[uploader.current_collection_num].name].make_data_id) {
+			if (dl.meta.app_config && dl.meta.app_config.collections && 
+				uploader.file_content && 
+				dl.meta.app_config.collections[uploader.file_content.collections[uploader.current_collection_num].name] && 
+				dl.meta.app_config.collections[uploader.file_content.collections[uploader.current_collection_num].name].make_data_id) {
 			} else {
-				delete thisRecord._id;
+				// delete thisRecord._id;
 			}
 	
 			//onsole.log("uploading "+thisRecord.url+" with options "+JSON.stringify(uploadOptions) )
-	
+		
 			freezr.db.write (
 				thisRecord, 
 				uploadOptions, 

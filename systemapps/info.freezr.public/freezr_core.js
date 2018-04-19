@@ -148,7 +148,7 @@ freezr.perms.setObjectAccess = function(permission_name, idOrQuery, options, cal
         // can have one of:  'shared_with_group':'logged_in' or 'public' or 'shared_with_user':a user id  
         // 'requestee_app': app_name (defaults to self)
         // collection: defaults to first in list
-        // make_accessible (four public individual items, this is always true) - for others, this makes it accessible in a separate searchable collection (accessibles) so it can be more easily combined with otehr data sets searched
+        // make_accessible (for public individual items, this is always true) - for others, this makes it accessible in a separate searchable collection (accessibles) so it can be more easily combined with otehr data sets searched
           // if use query_criteria, make_accessible is false even for public items. 
        }
       }

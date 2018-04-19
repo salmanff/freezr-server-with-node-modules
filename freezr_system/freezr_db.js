@@ -493,6 +493,7 @@ exports.getAllCollectionNames = db_main.getAllCollectionNames;
 
 exports.remove_user_records = function (user_id, app_name, callback) {
     var appDb, collection_names = [], other_data_exists = false;
+    console.log("remove_user_records for ",user_id,app_name)
 
     async.waterfall([
         // 1. get all collection names
@@ -501,48 +502,47 @@ exports.remove_user_records = function (user_id, app_name, callback) {
         },
 
         // 2. for all colelctions, delete user data
-        function (names, cb){
-            var a_name;
-            if (names && names.length > 0) {
-                names.forEach(function(name_obj) {
-                    a_name = (name_obj && name_obj.name)? name_obj.name.split(".")[1]:null;
-                    if (a_name && a_name!="system") collection_names.push(a_name)
-                });
-                if (collection_names && collection_names.length>0) {
-                    var this_collection;
-                    async.forEach(collection_names, function (collection_name, cb2) {
-                        async.waterfall([
+        function (collection_names, cb){
+            if (collection_names && collection_names.length>0) {
+                console.log("Coll names ",collection_names)
+                var this_collection;
+                async.forEach(collection_names, function (collection_name, cb2) {
+                    async.waterfall([
 
-                        function (cb2) {
-                            exports.app_db_collection_get(app_name.replace(/\./g,"_") , collection_name, cb);
-                        },
+                    function (cb3) {
+                        exports.app_db_collection_get(app_name.replace(/\./g,"_") , collection_name, cb3);
+                    },
 
-                        function (theCollection, cb2) {
-                            this_collection = theCollection;
-                            this_collection.remove({'_owner':user_id}, {safe: true}, cb2);
-                        },
+                    function (theCollection, cb3) {
+                        this_collection = theCollection;
+                        this_collection.remove({'_owner':user_id}, {safe: true}, cb2);
+                    },
 
-                        function (results, cb2)  {// remvoal results 
-                            this_collection.find().limit(1).toArray(cb2)
-                        },
+                    function (results, cb3)  {// remvoal results 
+                        this_collection.find().limit(1).toArray(cb2)
+                    },
 
-                        function(records, cb2) {
-                            if (records && records.length>0) other_data_exists=true;
+                    function(records, cb3) {
+                        if (records && records.length>0) other_data_exists=true;
+                        cb3(null);
+                    }
+
+                    ], 
+                    function (err) {
+                        if (err) {
+                            cb2(err);
+                        } else {
                             cb2(null);
                         }
-
-                        ], 
-                        function (err) {
-                            if (err) {
-                                cb(err);
-                            } else {
-                                cb(null);
-                            }
-                        });
-                    })
-                } else {
-                    cb(null);
-                }
+                    });
+                },
+                function (err) {
+                    if (err) {
+                        cb(err);
+                    } else {
+                        cb(null);
+                    }
+                })
             } else {
                 cb(null);
             }
@@ -559,7 +559,7 @@ exports.remove_user_records = function (user_id, app_name, callback) {
         });
 }
 exports.try_to_delete_app = function (user_id, app_name, env_params, callback) { 
-    console.log("try_to_delete_app "+app_name);
+    console.log("going to try_to_delete_app "+app_name);
     var other_data_exists = false;
     async.waterfall([
         // validate params ad remvoe all user data

@@ -8,6 +8,7 @@ freezr.initPageScripts = function() {
       var parts = evt.target.id.split('_');
       var args = evt.target.id.split('_');
       args.splice(0,2).join('_');
+      //onsole.log(args)
       if (buttons[parts[1]]) buttons[parts[1]](args);
     }
   });
@@ -30,7 +31,6 @@ var showDevOptions = function(){
 freezr.onFreezrMenuClose = function(hasChanged) {
   //freezer_restricted.menu.resetDialogueBox(true);
   if (userHasIntiatedAcions) buttons.updateAppList();
-    console.log("resetDialogueBox 3")
   setTimeout(function() {freezer_restricted.menu.resetDialogueBox(true);},300);
 }
 var buttons = {
@@ -62,9 +62,6 @@ var buttons = {
     userHasIntiatedAcions = true;
     var fileInput = document.getElementById('app_zipfile2');
     var file = (fileInput && fileInput.files)? fileInput.files[0]: null;
-
-    console.log(file.name+" size "+file.size)
-
 
     var parts = file.name.split('.');
     if (endsWith(parts[(parts.length-2)],"-master")) parts[(parts.length-2)] = parts[(parts.length-2)].slice(0,-7);
@@ -148,8 +145,7 @@ var buttons = {
               for (var i=0; i<imglist.length; i++) {
                   imglist[i].addEventListener("error", imglistener )
               }
-              console.log("LEN IS "+document.getElementsByClassName("dev_option").length)
-              if (doShowDevoptions && freezr_user_is_admin) Array.prototype.forEach.call(document.getElementsByClassName("dev_option"), function(el, index) {el.style.display="block"; console.log(el.id)});
+              if (doShowDevoptions && freezr_user_is_admin) Array.prototype.forEach.call(document.getElementsByClassName("dev_option"), function(el, index) {el.style.display="block";});
             })
           }
       });
@@ -161,9 +157,7 @@ var buttons = {
   },
   'closeMenu':function() {
     freezr.utils.freezrMenuClose();
-    console.log("closed from closemeni")
     //setTimeout(function() {freezer_restricted.menu.resetDialogueBox(true);},300);
-
   }
 
 }
