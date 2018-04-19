@@ -353,7 +353,7 @@ exports.putData = function (req, res){
                     data_object_id = data_object_id+"/"+fileParams.name;
                     file_handler.writeUserFile(fileParams.dir, fileParams.name, req.body.options, data_model, req, cb);       
                 }
-            } else if (!req.body.options.updateRecord && (!data_model || !data_model.make_data_id || (!data_model.make_data_id.from_field_names && !data_model.make_data_id.manual))) {
+            } else if ((!req.body.options || !req.body.options.updateRecord) && (!data_model || !data_model.make_data_id || (!data_model.make_data_id.from_field_names && !data_model.make_data_id.manual))) {
                 delete write._id;
                 cb(null, null);
             } else if (req.body.options.updateRecord) { 
