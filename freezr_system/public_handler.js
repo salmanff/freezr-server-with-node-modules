@@ -192,7 +192,7 @@ exports.generatePublicPage = function (req, res) {
                         } else if (html_file) {
                             var Mustache = require('mustache');
                             // todo add option to wrap card in html header
-                            file_handler.get_file_content(app_name, "public"+file_handler.sep()+html_file , freezr_environment, function(err, html_content) {
+                            file_handler.get_file_content(app_name, "public"+file_handler.sep()+html_file , req.freezr_environment, function(err, html_content) {
                                 if (err) {
                                     helpers.send_failure(res, helpers.error("file missing","html file missing - cannot generate card without a card html ("+page_name+")in app:"+app_name+"."), "public_handler", exports.version, "generatePublicPage" )
                                 

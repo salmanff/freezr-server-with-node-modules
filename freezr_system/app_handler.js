@@ -428,7 +428,8 @@ exports.putData = function (req, res){
                         if (data_object_id) {returned_confirm_fields._id = data_object_id};
                     }
             
-            if ((results == null || results.length == 0) && req.body.options && req.body.options.updateRecord && !req.body.options.restoreRecord && !data_model.make_data_id.manual){
+
+            if ((results == null || results.length == 0) && req.body.options && req.body.options.updateRecord && !req.body.options.restoreRecord && (!data_model || !data_model.make_data_id || !data_model.make_data_id.manual) ){
                 cb(helpers.rec_missing_error(exports.version, "putData", req.params.app_name, "Document not found. (updateRecord with no record) for record "))
             } else if ( (results == null || results.length == 0) ) { // new document
                 write._date_Created = new Date().getTime();
